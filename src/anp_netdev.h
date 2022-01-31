@@ -34,7 +34,6 @@ struct anp_netdev {
 
 void client_netdev_init();
 int netdev_transmit(struct subuff *skb, uint8_t *dst, uint16_t ethertype);
-int netdev_transmit_light(struct subuff *sub, uint8_t *dst_hw);
 struct anp_netdev* netdev_get(uint32_t sip);
 void *netdev_rx_loop();
 void free_netdev();

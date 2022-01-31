@@ -1,15 +1,14 @@
-lib/*
-CMakeFiles/*
+# Build stuff
+*.cmake
 CMakeCache.txt
-Makefile
-build/*
-cmake_install.cmake
-install_manifest.txt
-*.swp
-.vscode/
-anp-p4/routing/logs/*
-anp-p4/routing/pcaps/*
-anp-p4/duplication/logs/*
-anp-p4/duplication/pcaps/*
-anp-p4/loss/logs/*
-anp-p4/loss/pcaps/*
+CMakeFiles
+lib/*
+!/lib/.gitkeep
+bin/arpdummy*
+
+# Some language servers
+.ccls-cache
+.clangd
+
+# VSCode
+*.code-workspace

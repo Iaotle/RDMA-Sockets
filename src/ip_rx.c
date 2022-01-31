@@ -18,9 +18,8 @@
 #include "ip.h"
 #include "systems_headers.h"
 #include "utilities.h"
+#include "icmp.h"
 #include "config.h"
-#include "icmp/icmp.h"
-#include "tcp/tcp.h"
 
 int ip_rx(struct subuff *sub)
 {
@@ -62,9 +61,9 @@ int ip_rx(struct subuff *sub)
             icmp_rx(sub);
             return 0;
         case IPP_TCP:
-            //debug_ip_hdr("in", ih);
-            tcp_rx(sub);
-            return 0;
+            debug_ip_hdr("in", ih);
+            printf("incoming TCP packet, further logic NYI \n");
+            goto drop_pkt;
         default:
             #ifdef ANP_PRINT_UNKNOWN_PACKETS
             debug_ip_hdr("in", ih);

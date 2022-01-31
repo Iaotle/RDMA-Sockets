@@ -21,7 +21,6 @@
 #include <string.h>
 
 #include <netinet/in.h>
-#include <netinet/tcp.h>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -35,7 +34,6 @@ int main(int argc, char** argv)
 {
     int listen_fd, client_fd, len = 0, ret = -1, so_far = 0;
     int optval = 1;
-    int v = 1;
     struct sockaddr_in server_addr, client_addr;
     char debug_buffer[INET_ADDRSTRLEN];
     char test_buffer[TEST_BUF_SIZE];
@@ -47,7 +45,6 @@ int main(int argc, char** argv)
         return(-errno);
     }
     setsockopt(listen_fd, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
-    setsockopt(listen_fd, IPPROTO_TCP, TCP_NODELAY, &v, sizeof(v));
 
     printf("Socket successfully created, fd = %d \n", listen_fd);
     bzero(&server_addr, sizeof(server_addr));
@@ -109,9 +106,7 @@ int main(int argc, char** argv)
     // first recv the buffer, then tx it back as it is
     so_far = 0;
     while (so_far < TEST_BUF_SIZE) {
-        printf("entered loop \n");
         ret = recv(client_fd, test_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
-        printf("received something \n");
         if( 0 > ret){
             printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
             return -ret;
@@ -138,7 +133,7 @@ int main(int argc, char** argv)
     printf("ret from the recv is %d errno %d \n", ret, errno);
 
     // close the two fds
-    ret = close(client_fd);
+    ret =close(client_fd);
     if(ret){
         printf("Error: client shutdown was not clean , ret %d errno %d \n ", ret, errno);
         return -ret;

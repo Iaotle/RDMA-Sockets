@@ -23,8 +23,8 @@
 #include "utilities.h"
 #include "tap_netdev.h"
 #include "config.h"
-#include "arp/arp.h"
-#include "ip/ip.h"
+#include "arp.h"
+#include "ip.h"
 
 struct anp_netdev *cdev_lo;
 struct anp_netdev *cdev_ext;
@@ -90,16 +90,6 @@ int netdev_transmit(struct subuff *sub, uint8_t *dst_hw, uint16_t ethertype)
     memcpy(hdr->dmac, dst_hw, dev->addr_len);
     memcpy(hdr->smac, dev->hwaddr, dev->addr_len);
     hdr->ethertype = htons(ethertype);
-    ret = tdev_write((char *)sub->data, sub->len);
-    return ret;
-}
-
-int netdev_transmit_light(struct subuff *sub, uint8_t *dst_hw)
-{
-    struct anp_netdev *dev = sub->dev;
-    struct eth_hdr *hdr = (struct eth_hdr *)sub->head; //check this
-    int ret = 0;
-    memcpy(hdr->dmac, dst_hw, dev->addr_len);
     ret = tdev_write((char *)sub->data, sub->len);
     return ret;
 }

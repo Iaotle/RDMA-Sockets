@@ -57,8 +57,8 @@ static int process_arp_entry(struct arp_hdr *hdr, struct arp_ipv4 *data){
     memcpy(&entry->arpIpv4, data, sizeof(*data));
     list_add_tail(&entry->list, &arp_cache);
     u32_ip_to_str("[ARP] A new entry for", data->src_ip);
-    //debug_arp_payload("original ", data);
-    //debug_arp_payload("saved ", (&(entry->arpIpv4)));
+    debug_arp_payload("original ", data);
+    debug_arp_payload("saved ", (&(entry->arpIpv4)));
     return 0;
 }
 
@@ -77,7 +77,7 @@ void arp_rx(struct subuff *skb)
     arphdr->hwtype = ntohs(arphdr->hwtype);
     arphdr->protype = ntohs(arphdr->protype);
     arphdr->opcode = ntohs(arphdr->opcode);
-    //debug_arp("in", arphdr);
+    debug_arp("in", arphdr);
 
     if (arphdr->hwtype != ARP_ETHERNET) {
         printf("Error: not a Ethernet type ARP, how did it end up here?\n");
@@ -95,7 +95,7 @@ void arp_rx(struct subuff *skb)
 
     arpdata->src_ip = ntohl(arpdata->src_ip);
     arpdata->dst_ip = ntohl(arpdata->dst_ip);
-    //debug_arp_payload("receive", arpdata);
+    debug_arp_payload("receive", arpdata);
     process_arp_entry(arphdr, arpdata);
     // now check what else needs to be done
     switch (arphdr->opcode) {
@@ -147,14 +147,14 @@ int arp_request(uint32_t src_ip, uint32_t dst_ip, struct anp_netdev *netdev)
     // push again to get to the ARP header
     arp = (struct arp_hdr *) sub_push(sub, ARP_HDR_LEN);
 
-    //debug_arp("req", arp);
+    debug_arp("req", arp);
     arp->opcode = htons(ARP_REQUEST);
     arp->hwtype = htons(ARP_ETHERNET);
     arp->protype = htons(ETH_P_IP);
     arp->hwsize = netdev->addr_len;
     arp->prosize = 4;
 
-    //debug_arp_payload("req", payload);
+    debug_arp_payload("req", payload);
     payload->src_ip = htonl(payload->src_ip);
     payload->dst_ip = htonl(payload->dst_ip);
 
@@ -186,12 +186,12 @@ void arp_reply(struct subuff *sub, struct anp_netdev *netdev)
 
     arphdr->opcode = ARP_REPLY;
 
-    //debug_arp("reply", arphdr);
+    debug_arp("reply", arphdr);
     arphdr->opcode = htons(arphdr->opcode);
     arphdr->hwtype = htons(arphdr->hwtype);
     arphdr->protype = htons(arphdr->protype);
 
-    //debug_arp_payload("reply", arpdata);
+    debug_arp_payload("reply", arpdata);
     arpdata->src_ip = htonl(arpdata->src_ip);
     arpdata->dst_ip = htonl(arpdata->dst_ip);
 

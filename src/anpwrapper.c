@@ -23,12 +23,7 @@
 #include "linklist.h"
 #include "anpwrapper.h"
 #include "init.h"
-#include "config.h"
-#include "utilities.h"
-#include "errno.h"
-#include "tcp/tcb_store.h"
-#include "tcp/tcp.h"
-#include "tcp/ringbuffer.h"
+
 
 static int (*__start_main)(int (*main) (int, char * *, char * *), int argc, \
                            char * * ubp_av, void (*init) (void), void (*fini) (void), \
@@ -56,133 +51,61 @@ static int is_socket_supported(int domain, int type, int protocol)
     return 1;
 }
 
+// TODO: ANP milestone 3 -- implement the socket, and connect calls
 int socket(int domain, int type, int protocol) {
     if (is_socket_supported(domain, type, protocol)) {
-        uint16_t tcb_idx = new_tcb_idx();
-        if(tcb_idx < 0){
-            return -ENOBUFS;
-        }
-        if(init_tcb_idx(tcb_idx) < 0){
-            return -EACCES;
-        }
-        return tcb_idx + ANP_FD_OFFSET;
+        //TODO: implement your logic here
+        return -ENOSYS;
     }
+    // if this is not what anpnetstack support, let it go, let it go!
     return _socket(domain, type, protocol);
 }
 
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
-{    
-    int tcb_idx = sockfd - ANP_FD_OFFSET;
-    if(!is_valid_tcb(tcb_idx)){
-        return _connect(sockfd, addr, addrlen);
+{
+    //FIXME -- you can remember the file descriptors that you have generated in the socket call and match them here
+    bool is_anp_sockfd = false;
+    if(is_anp_sockfd){
+        //TODO: implement your logic here
+        return -ENOSYS;
     }
-
-    struct sockaddr_in* sockaddr_in = (struct sockaddr_in*) addr;
-    uint32_t daddr = ntohl(sockaddr_in->sin_addr.s_addr);
-    uint16_t dport = ntohs(sockaddr_in->sin_port);
-    uint32_t saddr = ip_str_to_h32(ANP_IP_CLIENT_EXT);
-
-    struct tcb* tcb = get_tcb_at_idx(tcb_idx, true);
-    int err = set_tcb_conn(tcb, saddr, daddr, sockfd, dport);
-    if (err < 0){
-        unlock_tcb_at_idx(tcb_idx);
-        errno = EISCONN;
-        return -1;
-    }
-
-	tcp_send_syn(tcb);
-
-    while (tcb && (tcb->state == TCP_STATE_SYN_SENT || tcb->state == TCP_STATE_SYN_RECEIVED)){
-        wait_for_tcb_change(tcb_idx);
-        tcb = get_tcb_at_idx(tcb_idx, false);
-    }
-
-    if (!tcb || tcb->state != TCP_STATE_ESTABLISHED){
-        unlock_tcb_at_idx(tcb_idx);
-        errno = ETIMEDOUT;
-        return -1;
-    }
-
-    unlock_tcb_at_idx(tcb_idx);
-    return 0;
+    // the default path
+    return _connect(sockfd, addr, addrlen);
 }
 
+// TODO: ANP milestone 5 -- implement the send, recv, and close calls
 ssize_t send(int sockfd, const void *buf, size_t len, int flags)
 {
-    int tcb_idx = sockfd - ANP_FD_OFFSET;
-    if(!is_valid_tcb(tcb_idx)){
-        return _send(sockfd, buf, len, flags);
+    //FIXME -- you can remember the file descriptors that you have generated in the socket call and match them here
+    bool is_anp_sockfd = false;
+    if(is_anp_sockfd) {
+        //TODO: implement your logic here
+        return -ENOSYS;
     }
-
-    struct tcb* tcb = get_tcb_at_idx(tcb_idx, true);
-    if(!tcb || tcb->state != TCP_STATE_ESTABLISHED){
-        unlock_tcb_at_idx(tcb_idx);
-        errno = ENOTCONN;
-        return -1;
-    }
-    size_t send_len = MIN(len, MIN(tcb->remote_wnd, TCP_OVER_ETH_MAX_PAYLOAD_SIZE));
-    
-    uint32_t tcp_pkt_size = TCP_PACKET_SIZE(send_len);
-    struct subuff* sub = alloc_tcp_sub(tcp_pkt_size, tcb_idx, send_len, TCP_RETRANSMIT_TTL);
-	sub_reserve(sub, tcp_pkt_size);
-    sub_push(sub, send_len);
-    memcpy(sub->data, (uint8_t*) buf, send_len);
-
-    send_tcp_packet(sub, tcb, TCP_ACK);
-    unlock_tcb_at_idx(tcb_idx);
-    return send_len;
+    // the default path
+    return _send(sockfd, buf, len, flags);
 }
 
 ssize_t recv (int sockfd, void *buf, size_t len, int flags){
-    int tcb_idx = sockfd - ANP_FD_OFFSET;
-    if(!is_valid_tcb(tcb_idx)){
-        return _recv(sockfd, buf, len, flags);
+    //FIXME -- you can remember the file descriptors that you have generated in the socket call and match them here
+    bool is_anp_sockfd = false;
+    if(is_anp_sockfd) {
+        //TODO: implement your logic here
+        return -ENOSYS;
     }
-
-    struct tcb* tcb = get_tcb_at_idx(tcb_idx, true);
-    while (tcb && tcb->state == TCP_STATE_ESTABLISHED && ringbuffer_empty(tcb->rx_buff)){
-        wait_for_tcb_change(tcb_idx);
-        tcb = get_tcb_at_idx(tcb_idx, false);
-    }
-
-    if(!tcb || tcb->state != TCP_STATE_ESTABLISHED){
-        unlock_tcb_at_idx(tcb_idx);
-        errno = ENOTCONN;
-        return -1;
-    }
-    bool rx_buf_is_full = ringbuffer_unused_elem_count(tcb->rx_buff) == 0;
-    int ret = ringbuffer_remove(tcb->rx_buff, (int8_t*)buf, len);
-
-    // Send ACK to notify sender that the window size has updated if the buffer was full
-    if(rx_buf_is_full){
-        tcp_send_ack(tcb);
-    }
-
-    unlock_tcb_at_idx(tcb_idx);
-    return ret;
+    // the default path
+    return _recv(sockfd, buf, len, flags);
 }
 
 int close (int sockfd){
-    int tcb_idx = sockfd - ANP_FD_OFFSET;
-    if(!is_valid_tcb(tcb_idx)){
-        return _close(sockfd);
+    //FIXME -- you can remember the file descriptors that you have generated in the socket call and match them here
+    bool is_anp_sockfd = false;
+    if(is_anp_sockfd) {
+        //TODO: implement your logic here
+        return -ENOSYS;
     }
-
-    struct tcb* tcb = get_tcb_at_idx(tcb_idx, true);
-    if(tcb->state != TCP_STATE_ESTABLISHED){
-        unlock_tcb_at_idx(tcb_idx);
-        errno = ENOTCONN;
-        return -1;
-    }
-
-    tcp_send_fin(tcb);
-    while (tcb){
-        wait_for_tcb_change(tcb_idx);
-        tcb = get_tcb_at_idx(tcb_idx, false);
-    }
-    
-    unlock_tcb_at_idx(tcb_idx);
-    return 0;
+    // the default path
+    return _close(sockfd);
 }
 
 void _function_override_init()

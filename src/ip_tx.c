@@ -21,7 +21,7 @@
 #include "route.h"
 #include "subuff.h"
 #include "anp_netdev.h"
-#include "arp/arp.h"
+#include "arp.h"
 
 void ip_send_check(struct iphdr *ihdr)
 {
@@ -82,7 +82,7 @@ int ip_output(uint32_t dst_ip_addr, struct subuff *sub)
     ihdr->daddr = dst_ip_addr;
     ihdr->csum = 0;
 
-    //debug_ip_hdr("out", ihdr);
+    debug_ip_hdr("out", ihdr);
 
     ihdr->len = htons(ihdr->len);
     ihdr->id = htons(ihdr->id);

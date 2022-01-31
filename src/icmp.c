@@ -15,9 +15,20 @@
  * limitations under the License.
 */
 
-#ifndef ANPNETSTACK_ANPWRAPPER_H
-#define ANPNETSTACK_ANPWRAPPER_H
+#include "icmp.h"
+#include "ip.h"
+#include "utilities.h"
 
-void _function_override_init();
+void icmp_rx(struct subuff *sub)
+{
+    //FIXME: implement your ICMP packet processing implementation here
+    //figure out various type of ICMP packets, and implement the ECHO response type (icmp_reply)
+    free_sub(sub);
+}
 
-#endif //ANPNETSTACK_ANPWRAPPER_H
+void icmp_reply(struct subuff *sub)
+{
+    //FIXME: implement your ICMP reply implementation here
+    // preapre an ICMP response buffer
+    // send it out on ip_ouput(...)
+}

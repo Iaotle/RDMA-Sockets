@@ -23,8 +23,6 @@
 #include "route.h"
 #include "anpwrapper.h"
 #include "timer.h"
-#include "tcp/tcb_store.h"
-#include "tcp/isn.h"
 
 extern char**environ;
 
@@ -71,8 +69,6 @@ void __attribute__ ((constructor)) _init_anp_netstack() {
     unsetenv("LD_PRELOAD");
 #endif
     printf("Hello there, I am ANP networking stack!\n");
-    init_tcb_store();
-
     _function_override_init();
     // this is the external end, at 10.0.0.5
     tdev_init();
@@ -81,6 +77,4 @@ void __attribute__ ((constructor)) _init_anp_netstack() {
     // insert and init some default routes about, lo, local delivery, and the gateway
     route_init();
     init_threads();
-
-	isn_start_clock();
 }

@@ -1,1 +1,0 @@
-gnome-terminal -- tcpdump -r s1-eth1.pcap 

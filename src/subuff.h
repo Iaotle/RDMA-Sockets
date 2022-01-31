@@ -37,6 +37,7 @@ struct subuff {
     uint32_t seq;
     uint32_t end_seq;
 
+
     // Actual head of the buffer, do not modify
     uint8_t *head;
     // Actual end of the buffer, do not modify
@@ -53,16 +54,11 @@ struct subuff {
     uint32_t dlen;
     // This second set is useful when wanting to keep track of the TCP payload
     // without affecting the encompassing data portion
-
-    uint8_t tcb_idx;
-    uint8_t ttl;
-    struct timer* timer;
 };
 
 struct subuff_head {
     struct list_head head;
     uint32_t queue_len;
-    pthread_mutex_t lock;
 };
 
 struct subuff *alloc_sub(unsigned int size);

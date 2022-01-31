@@ -80,6 +80,7 @@ int main(int argc, char** argv)
     }
     inet_ntop( AF_INET, &server_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("OK: connected to the server at %s \n", debug_buffer);
+
     // write a pattern
     write_pattern(tx_buffer, TEST_BUF_SIZE);
 
@@ -93,6 +94,7 @@ int main(int argc, char** argv)
         so_far+=ret;
         printf("\t [send loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
     }
+
     printf("OK: buffer sent successfully \n");
     printf("OK: waiting to receive data \n");
     // receive test buffer

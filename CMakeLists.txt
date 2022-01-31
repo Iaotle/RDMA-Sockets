@@ -20,8 +20,7 @@ project(anpnetstack VERSION 1.0.1 DESCRIPTION "ANP networking stack")
 include(GNUInstallDirs)
 
 # -g is needed to print the debugging symbols in the backtrace, you can later remove it with -O2
-set(CMAKE_C_FLAGS "-std=gnu99") # TODO: remove
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -shared -g -std=gnu99")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -shared -g")
 
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib/)
@@ -29,27 +28,19 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib/)
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
-SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
-
 add_library(anpnetstack SHARED
         src/init.c
         src/tap_netdev.c
         src/utilities.c
         src/anp_netdev.c
         src/anpwrapper.c
+        src/arp.c
         src/subuff.c
         src/route.c
         src/timer.c
-        src/arp/arp.c
-        src/ip/ip_rx.c
-        src/ip/ip_tx.c
-        src/icmp/icmp.c
-        src/tcp/tcp_tx.c
-        src/tcp/tcp_rx.c
-        src/tcp/tcb.c
-        src/tcp/tcb_store.c
-        src/tcp/isn.c
-        src/tcp/ringbuffer.c)
+        src/ip_rx.c
+        src/ip_tx.c
+        src/icmp.c)
 
 find_package(Threads)
 target_link_libraries(anpnetstack ${CMAKE_THREAD_LIBS_INIT})
@@ -67,10 +58,5 @@ install(TARGETS anpnetstack
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-
 add_executable(anp_server server-client/tcp_server.c server-client/common.h server-client/common.c)
 add_executable(anp_client server-client/tcp_client.c server-client/common.h server-client/common.c)
-
-
-add_executable(anp_server_mult server-client/tcp_server_mult.c server-client/common.h server-client/common.c)
-add_executable(anp_client_mult server-client/tcp_client_mult.c server-client/common.h server-client/common.c)
