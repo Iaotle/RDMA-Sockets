@@ -20,6 +20,7 @@ project(anpnetstack VERSION 1.0.1 DESCRIPTION "ANP networking stack")
 include(GNUInstallDirs)
 
 # -g is needed to print the debugging symbols in the backtrace, you can later remove it with -O2
+set(CMAKE_C_FLAGS "-std=gnu99")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -shared -g -std=gnu99")
 
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
