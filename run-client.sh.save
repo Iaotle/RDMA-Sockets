@@ -1,0 +1,2 @@
+sudo make install
+sudo bin/./sh-hack-anp.sh build/anp_client 127.0.0.1 666
