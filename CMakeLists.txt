@@ -20,7 +20,8 @@ project(anpnetstack VERSION 1.0.1 DESCRIPTION "ANP networking stack")
 include(GNUInstallDirs)
 
 # -g is needed to print the debugging symbols in the backtrace, you can later remove it with -O2
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -shared -g")
+set(CMAKE_C_FLAGS "-std=gnu99") # TODO: remove
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -shared -g -std=gnu99")
 
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib/)
@@ -65,6 +66,7 @@ target_include_directories(anpnetstack PRIVATE include)
 install(TARGETS anpnetstack
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
 
 add_executable(anp_server server-client/tcp_server.c server-client/common.h server-client/common.c)
 add_executable(anp_client server-client/tcp_client.c server-client/common.h server-client/common.c)
