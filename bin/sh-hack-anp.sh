@@ -6,5 +6,5 @@ fi
 set -ex
 prog="$1"
 shift
-LD_PRELOAD="/usr/local/lib/libanpnetstack.so" "$prog" "$@"
+LD_PRELOAD="/home/viv600/anptest/lib/libanpnetstack.so.1.0.1" "$prog" "$@"
 
