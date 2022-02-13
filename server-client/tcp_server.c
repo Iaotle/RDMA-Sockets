@@ -104,29 +104,30 @@ int main(int argc, char** argv)
     inet_ntop( AF_INET, &client_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("new incoming connection from %s \n", debug_buffer);
     // first recv the buffer, then tx it back as it is
-    so_far = 0;
-    while (so_far < TEST_BUF_SIZE) {
-        ret = recv(client_fd, test_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
-        if( 0 > ret){
-            printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far+=ret;
-        printf("\t [receive loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
-    }
-    printf("OK: buffer received ok, pattern match : %s  \n", match_pattern(test_buffer, TEST_BUF_SIZE));
-    // then tx it back as it is
-    so_far = 0;
-    while (so_far < TEST_BUF_SIZE){
-        ret = send(client_fd, test_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
-        if( 0 > ret){
-            printf("Error: send failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far+=ret;
-        printf("\t [send loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
-    }
-    printf("OK: buffer tx backed \n");
+	// TODO: send/recv
+    // so_far = 0;
+    // while (so_far < TEST_BUF_SIZE) {
+    //     ret = recv(client_fd, test_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
+    //     if( 0 > ret){
+    //         printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
+    //         return -ret;
+    //     }
+    //     so_far+=ret;
+    //     printf("\t [receive loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
+    // }
+    // printf("OK: buffer received ok, pattern match : %s  \n", match_pattern(test_buffer, TEST_BUF_SIZE));
+    // // then tx it back as it is
+    // so_far = 0;
+    // while (so_far < TEST_BUF_SIZE){
+    //     ret = send(client_fd, test_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
+    //     if( 0 > ret){
+    //         printf("Error: send failed with ret %d and errno %d \n", ret, errno);
+    //         return -ret;
+    //     }
+    //     so_far+=ret;
+    //     printf("\t [send loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
+    // }
+    // printf("OK: buffer tx backed \n");
 
     // in order to initiate the connection close from the client side, we wait here indefinitely to receive more
     ret = recv(client_fd, test_buffer, TEST_BUF_SIZE, 0);
