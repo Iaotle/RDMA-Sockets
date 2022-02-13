@@ -44,13 +44,10 @@ add_library(anpnetstack SHARED
         src/icmp.c)
 
 find_package(Threads)
-target_link_libraries(anpnetstack ${CMAKE_THREAD_LIBS_INIT})
-target_link_libraries(anpnetstack dl)
-
 find_library(IBVERBS_LIBRARY ibverbs HINTS /home/atr/local/lib)
 find_library(RDMACM_LIBRARY rdmacm HINTS /home/atr/local/lib)
-
-link_libraries(pthread ${IBVERBS_LIBRARY} ${RDMACM_LIBRARY})
+target_link_libraries(anpnetstack ${CMAKE_THREAD_LIBS_INIT} ${IBVERBS_LIBRARY} ${RDMACM_LIBRARY})
+target_link_libraries(anpnetstack dl)
 
 set_target_properties(anpnetstack PROPERTIES
         VERSION ${PROJECT_VERSION}
