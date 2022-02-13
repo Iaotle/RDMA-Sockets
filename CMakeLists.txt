@@ -49,6 +49,8 @@ find_library(RDMACM_LIBRARY rdmacm HINTS /home/atr/local/lib)
 target_link_libraries(anpnetstack ${CMAKE_THREAD_LIBS_INIT} ${IBVERBS_LIBRARY} ${RDMACM_LIBRARY})
 target_link_libraries(anpnetstack dl)
 
+link_libraries(pthread ${IBVERBS_LIBRARY} ${RDMACM_LIBRARY})
+
 set_target_properties(anpnetstack PROPERTIES
         VERSION ${PROJECT_VERSION}
         SOVERSION 1
