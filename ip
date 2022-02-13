@@ -1,0 +1,2 @@
+#!/bin/bash -i
+ifconfig 2> /dev/null | grep -o "10.149.0... "

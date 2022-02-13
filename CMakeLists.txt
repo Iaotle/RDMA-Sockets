@@ -61,5 +61,5 @@ install(TARGETS anpnetstack
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_executable(anp_server server-client/tcp_server.c server-client/common.h server-client/common.c)
-add_executable(anp_client server-client/tcp_client.c server-client/common.h server-client/common.c)
+add_executable(anp_server server-client/tcp_server.c server-client/common.h server-client/common.c src/rdma_common.h src/rdma_common.c)
+add_executable(anp_client server-client/tcp_client.c server-client/common.h server-client/common.c src/rdma_common.h src/rdma_common.c)
