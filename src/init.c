@@ -71,10 +71,10 @@ void __attribute__ ((constructor)) _init_anp_netstack() {
     printf("Hello there, I am ANP networking stack!\n");
     _function_override_init();
     // this is the external end, at 10.0.0.5
-    tdev_init();
+    // tdev_init();
     // this is the client end, at 10.0.0.4
-    client_netdev_init();
+    // client_netdev_init();
     // insert and init some default routes about, lo, local delivery, and the gateway
-    route_init();
-    init_threads();
+    // route_init();
+    // init_threads();
 }
