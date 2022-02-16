@@ -29,6 +29,7 @@
 #include <arpa/inet.h>
 #include <stdbool.h>
 #include "common.h"
+#include "rdma_common.h"
 
 int main(int argc, char** argv)
 {
