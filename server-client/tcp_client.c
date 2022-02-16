@@ -26,7 +26,7 @@
 #include <unistd.h>
 
 #include "common.h"
-#include "rdma_common.h"
+#include "../src/rdma_common.h"
 
 // sudo tcpdump -i wlp2s0 tcp port 43211
 int main(int argc, char** argv)
