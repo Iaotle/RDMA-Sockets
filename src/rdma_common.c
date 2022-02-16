@@ -207,15 +207,15 @@ int process_work_completion_events (struct ibv_comp_channel *comp_channel,
 /* Code acknowledgment: rping.c from librdmacm/examples */
 int get_addr(char *dst, struct sockaddr *addr)
 {
-	struct addrinfo *res;
-	int ret = -1;
-	ret = getaddrinfo(dst, NULL, NULL, &res);
-	if (ret) {
-		rdma_error("getaddrinfo failed - invalid hostname or IP address\n");
-		return ret;
-	}
-	memcpy(addr, res->ai_addr, sizeof(struct sockaddr_in));
-	freeaddrinfo(res);
-	return ret;
+    struct addrinfo *res;
+    int ret = -1;
+    ret = getaddrinfo(dst, NULL, NULL, &res);
+    if (ret) {
+        printf("Error: getaddrinfo failed - invalid hostname or IP address\n");
+        return ret;
+    }
+    memcpy(addr, res->ai_addr, sizeof(struct sockaddr_in));
+    freeaddrinfo(res);
+    return ret;
 }
 

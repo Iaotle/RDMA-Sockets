@@ -20,20 +20,6 @@
 
 #define PATTERN_START 0xAA;
 
-int get_addr(char *dst, struct sockaddr *addr)
-{
-    struct addrinfo *res;
-    int ret = -1;
-    ret = getaddrinfo(dst, NULL, NULL, &res);
-    if (ret) {
-        printf("Error: getaddrinfo failed - invalid hostname or IP address\n");
-        return ret;
-    }
-    memcpy(addr, res->ai_addr, sizeof(struct sockaddr_in));
-    freeaddrinfo(res);
-    return ret;
-}
-
 void write_pattern(char *buf, int size){
     // write a pattern
     unsigned char start = PATTERN_START;
