@@ -16,7 +16,7 @@
 #
 
 cmake_minimum_required(VERSION 3.10)
-project(anpnetstack VERSION 1.0.1 DESCRIPTION "ANP networking stack")
+project(anpnetstack VERSION 1.0.2 DESCRIPTION "ANP networking stack")
 include(GNUInstallDirs)
 
 # -g is needed to print the debugging symbols in the backtrace, you can later remove it with -O2
