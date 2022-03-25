@@ -292,9 +292,6 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     // the socket call and match them here
     bool is_anp_sockfd = false;
     if (is_anp_sockfd) {
-
-		return 0;
-
 		// connect start
 		int ret = rdma_resolve_addr(cm_client_id, NULL, (struct sockaddr *) addr, 2000);
 		if (ret) {
