@@ -287,6 +287,7 @@ int close(int sockfd) {
 
 
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+	printf("testing here\n");
     // FIXME -- you can remember the file descriptors that you have generated in
     // the socket call and match them here
     bool is_anp_sockfd = false;
@@ -295,10 +296,15 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 		return 0;
 
 		// connect start
-		rdma_resolve_addr(cm_client_id, NULL, (struct sockaddr *) addr, 2000);
+		int ret = rdma_resolve_addr(cm_client_id, NULL, (struct sockaddr *) addr, 2000);
+		if (ret) {
+			printf("resolve failed, with error code %d\n", ret);
+		}
 		process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ADDR_RESOLVED,
 									&cm_event);
 		/* we ack the event */
+		printf("testing heree\n");
+
 		rdma_ack_cm_event(cm_event);
 
 		/* Resolves an RDMA route to the destination address in order to
