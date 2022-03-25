@@ -33,8 +33,8 @@ static int (*__start_main)(int (*main)(int, char **, char **), int argc,
                            void (*fini)(void), void (*rtld_fini)(void),
                            void(*stack_end));
 
-static ssize_t (*_send)(int fd, const void *buf, size_t n, int flags) = NULL;
-static ssize_t (*_recv)(int fd, void *buf, size_t n, int flags) = NULL;
+static int (*_send)(int fd, const void *buf, size_t n, int flags) = NULL;
+static int (*_recv)(int fd, void *buf, size_t n, int flags) = NULL;
 
 static int (*_connect)(int sockfd, const struct sockaddr *addr,
                        socklen_t addrlen) = NULL;
@@ -250,8 +250,36 @@ int close(int sockfd) {
     // the socket call and match them here
     bool is_anp_sockfd = false;
     if (is_anp_sockfd) {
-        // TODO: implement your logic here
-        return -ENOSYS;
+		// close code
+		if (cm_server_id == NULL) rdma_disconnect(cm_client_id); // hacky way to check if we are server or client
+		process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_DISCONNECTED,
+									&cm_event);
+		rdma_ack_cm_event(cm_event);
+		/* Destroy QP */
+		rdma_destroy_qp(cm_client_id);
+		/* Destroy client cm id */
+		rdma_destroy_id(cm_client_id);
+		if (cm_server_id != NULL) rdma_destroy_id(cm_server_id);
+		/* Destroy CQ */
+		ibv_destroy_cq(client_cq);
+		/* Destroy completion channel */
+		ibv_destroy_comp_channel(io_completion_channel);
+		/* Destroy memory buffers */
+		if (server_metadata_mr != NULL) rdma_buffer_deregister(server_metadata_mr);
+		if (client_metadata_mr != NULL) rdma_buffer_deregister(client_metadata_mr);
+		if (client_src_mr != NULL) rdma_buffer_deregister(client_src_mr);
+		if (client_dst_mr != NULL) rdma_buffer_deregister(client_dst_mr);
+
+		if (server_buffer_mr != NULL) rdma_buffer_free(server_buffer_mr);
+
+		/* We free the buffers */
+		if (src != NULL) free(src);
+		if (dst != NULL) free(dst);
+		/* Destroy protection domain */
+		ibv_dealloc_pd(pd);
+		rdma_destroy_event_channel(cm_event_channel);
+		printf("Resource clean up is complete \n");
+		return 0;
     }
     // the default path
     return _close(sockfd);
@@ -263,7 +291,138 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     // the socket call and match them here
     bool is_anp_sockfd = false;
     if (is_anp_sockfd) {
-        // TODO: implement your logic here
+
+		// connect start
+		rdma_resolve_addr(cm_client_id, NULL, (struct sockaddr *)s_addr, 2000);
+		process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ADDR_RESOLVED,
+									&cm_event);
+		/* we ack the event */
+		rdma_ack_cm_event(cm_event);
+
+		/* Resolves an RDMA route to the destination address in order to
+		* establish a connection */
+		rdma_resolve_route(cm_client_id, 2000);
+		process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ROUTE_RESOLVED,
+									&cm_event);
+		/* we ack the event */
+		rdma_ack_cm_event(cm_event);
+
+		/* Protection Domain (PD) is similar to a "process abstraction"
+		* in the operating system. All resources are tied to a particular PD.
+		* And accessing recourses across PD will result in a protection fault.
+		*/
+		pd = ibv_alloc_pd(cm_client_id->verbs);
+		/* Now we need a completion channel, were the I/O completion
+		* notifications are sent. Remember, this is different from connection
+		* management (CM) event notifications.
+		* A completion channel is also tied to an RDMA device, hence we will
+		* use cm_client_id->verbs.
+		*/
+		io_completion_channel = ibv_create_comp_channel(cm_client_id->verbs);
+		/* Now we create a completion queue (CQ) where actual I/O
+		* completion metadata is placed. The metadata is packed into a structure
+		* called struct ibv_wc (wc = work completion). ibv_wc has detailed
+		* information about the work completion. An I/O request in RDMA world
+		* is called "work" ;)
+		*/
+		client_cq =
+			ibv_create_cq(cm_client_id->verbs /* which device*/,
+						CQ_CAPACITY /* maximum capacity*/,
+						NULL /* user context, not used here */,
+						io_completion_channel /* which IO completion channel */,
+						0 /* signaling vector, not used here*/);
+		ibv_req_notify_cq(client_cq, 0);
+		/* Now the last step, set up the queue pair (send, recv) queues and their
+		* capacity. The capacity here is define statically but this can be probed
+		* from the device. We just use a small number as defined in rdma_common.h
+		*/
+		bzero(&qp_init_attr, sizeof qp_init_attr);
+		qp_init_attr.cap.max_recv_sge =
+			MAX_SGE; /* Maximum SGE per receive posting */
+		qp_init_attr.cap.max_recv_wr =
+			MAX_WR; /* Maximum receive posting capacity */
+		qp_init_attr.cap.max_send_sge = MAX_SGE; /* Maximum SGE per send posting */
+		qp_init_attr.cap.max_send_wr = MAX_WR;   /* Maximum send posting capacity */
+		qp_init_attr.qp_type = IBV_QPT_RC; /* QP type, RC = Reliable connection */
+		/* We use same completion queue, but one can use different queues */
+		qp_init_attr.recv_cq =
+			client_cq; /* Where should I notify for receive completion operations */
+		qp_init_attr.send_cq =
+			client_cq; /* Where should I notify for send completion operations */
+		/*Lets create a QP */
+		rdma_create_qp(cm_client_id /* which connection id */,
+							pd /* which protection domain*/,
+							&qp_init_attr /* Initial attributes */);
+		client_qp = cm_client_id->qp;
+
+
+
+
+		// CLIENT_PRE_POST_RECV_BUFFER
+		server_metadata_mr = rdma_buffer_register(pd, &server_metadata_attr,
+												sizeof(server_metadata_attr),
+												(IBV_ACCESS_LOCAL_WRITE));
+		server_recv_sge.addr = (uint64_t)server_metadata_mr->addr;
+		server_recv_sge.length = (uint32_t)server_metadata_mr->length;
+		server_recv_sge.lkey = (uint32_t)server_metadata_mr->lkey;
+		/* now we link it to the request */
+		bzero(&server_recv_wr, sizeof(server_recv_wr));
+		server_recv_wr.sg_list = &server_recv_sge;
+		server_recv_wr.num_sge = 1;
+		ibv_post_recv(client_qp /* which QP */,
+							&server_recv_wr /* receive work request*/,
+							&bad_server_recv_wr /* error WRs */);
+		debug("Receive buffer pre-posting is successful \n");
+
+
+		// RDMA_CLIENT_CONNECT_TO_SERVER
+		struct rdma_conn_param conn_param;
+		struct rdma_cm_event *cm_event = NULL;
+		bzero(&conn_param, sizeof(conn_param));
+		conn_param.initiator_depth = 3;
+		conn_param.responder_resources = 3;
+		conn_param.retry_count = 3;  // if fail, then how many times to retry
+		rdma_connect(cm_client_id, &conn_param);
+		debug("waiting for cm event: RDMA_CM_EVENT_ESTABLISHED\n");
+		process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ESTABLISHED,
+									&cm_event);
+		rdma_ack_cm_event(cm_event);
+		printf("The client is connected successfully \n");
+
+		// CLIENT_EXCHANGE_METADATA_WITH_SERVER
+		struct ibv_wc wc[2];
+		client_src_mr =
+			rdma_buffer_register(pd, src, strlen(src),
+								(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
+								IBV_ACCESS_REMOTE_WRITE));
+		/* we prepare metadata for the first buffer */
+		client_metadata_attr.address = (uint64_t)client_src_mr->addr;
+		client_metadata_attr.length = client_src_mr->length;
+		client_metadata_attr.stag.local_stag = client_src_mr->lkey;
+		/* now we register the metadata memory */
+		client_metadata_mr = rdma_buffer_register(pd, &client_metadata_attr,
+												sizeof(client_metadata_attr),
+												IBV_ACCESS_LOCAL_WRITE);
+		/* now we fill up SGE */
+		client_send_sge.addr = (uint64_t)client_metadata_mr->addr;
+		client_send_sge.length = (uint32_t)client_metadata_mr->length;
+		client_send_sge.lkey = client_metadata_mr->lkey;
+		/* now we link to the send work request */
+		bzero(&client_send_wr, sizeof(client_send_wr));
+		client_send_wr.sg_list = &client_send_sge;
+		client_send_wr.num_sge = 1;
+		client_send_wr.opcode = IBV_WR_SEND;
+		client_send_wr.send_flags = IBV_SEND_SIGNALED;
+		/* Now we post it */
+		ibv_post_send(client_qp, &client_send_wr, &bad_client_send_wr);
+		/* at this point we are expecting 2 work completion. One for our
+		* send and one for recv that we will get from the server for
+		* its buffer information */
+		process_work_completion_events(io_completion_channel, wc, 2);
+		debug("Server sent us its buffer location and credentials, showing \n");
+		show_rdma_buffer_attr(&server_metadata_attr);
+
+
         return -ENOSYS;
     }
     // the default path

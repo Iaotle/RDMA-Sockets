@@ -131,11 +131,11 @@ int main(int argc, char** argv)
     // printf("OK: buffer tx backed \n");
 
     // in order to initiate the connection close from the client side, we wait here indefinitely to receive more
-    ret = recv(client_fd, test_buffer, TEST_BUF_SIZE, 0);
-    printf("ret from the recv is %d errno %d \n", ret, errno);
+    // ret = recv(client_fd, test_buffer, TEST_BUF_SIZE, 0);
+    // printf("ret from the recv is %d errno %d \n", ret, errno);
 
     // close the two fds
-    ret =close(client_fd);
+    ret = close(client_fd);
     if(ret){
         printf("Error: client shutdown was not clean , ret %d errno %d \n ", ret, errno);
         return -ret;
