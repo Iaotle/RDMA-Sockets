@@ -97,7 +97,11 @@ static int is_socket_supported(int domain, int type, int protocol) {
 int socket(int domain, int type, int protocol) {
     if (is_socket_supported(domain, type, protocol)) {
         /*  Open a channel used to report asynchronous communication event */
-        cm_event_channel = rdma_create_event_channel();
+        int ret = cm_event_channel = rdma_create_event_channel();
+		if (ret) {
+			rdma_error("RDMA Channel could not be created", -errno);
+			return -errno;
+		}
         /* rdma_cm_id is the connection identifier (like socket) which is used
          * to define an RDMA connection.
          */
@@ -286,16 +290,16 @@ int close(int sockfd) {
 }
 
 
-int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+int connect(int sockfd, const struct sockaddr_in *addr, socklen_t addrlen) {
 	printf("testing here\n");
     // FIXME -- you can remember the file descriptors that you have generated in
     // the socket call and match them here
     bool is_anp_sockfd = false;
     if (is_anp_sockfd) {
 		// connect start
-		int ret = rdma_resolve_addr(cm_client_id, NULL, (struct sockaddr *) addr, 2000);
+		int ret = rdma_resolve_addr(cm_client_id, NULL, (struct sockaddr_in *) addr, 2000);
 		if (ret) {
-			printf("resolve failed, with error code %d\n", ret);
+			rdma_error("resolve failed, with error code %d\n", -errno);
 		}
 		process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ADDR_RESOLVED,
 									&cm_event);
