@@ -105,7 +105,9 @@ int socket(int domain, int type, int protocol) {
         /* rdma_cm_id is the connection identifier (like socket) which is used
          * to define an RDMA connection.
          */
-        return rdma_create_id(cm_event_channel, &cm_client_id, NULL, RDMA_PS_TCP); // this is different for client and server so we should combine this
+        // return 
+		int id = rdma_create_id(cm_event_channel, &cm_client_id, NULL, RDMA_PS_TCP); // this is different for client and server so we should combine this
+		return rdma_resolve_addr(id, NULL, (struct sockaddr_in *) addr, 2000);
 
         return -ENOSYS;
     }
