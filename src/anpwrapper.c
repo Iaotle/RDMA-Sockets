@@ -101,7 +101,7 @@ int socket(int domain, int type, int protocol) {
         /* rdma_cm_id is the connection identifier (like socket) which is used
          * to define an RDMA connection.
          */
-        return rdma_create_id(cm_event_channel, &cm_server_id, NULL, RDMA_PS_TCP); // this is different for client and server so we should combine this
+        return rdma_create_id(cm_event_channel, &cm_client_id, NULL, RDMA_PS_TCP); // this is different for client and server so we should combine this
 
         return -ENOSYS;
     }
@@ -293,7 +293,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     bool is_anp_sockfd = false;
     if (is_anp_sockfd) {
 		// connect start
-		int ret = rdma_resolve_addr(cm_server_id, NULL, (struct sockaddr *) addr, 2000);
+		int ret = rdma_resolve_addr(cm_client_id, NULL, (struct sockaddr *) addr, 2000);
 		if (ret) {
 			printf("resolve failed, with error code %d\n", ret);
 		}
@@ -306,7 +306,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 
 		/* Resolves an RDMA route to the destination address in order to
 		* establish a connection */
-		rdma_resolve_route(cm_server_id, 2000);
+		rdma_resolve_route(cm_client_id, 2000);
 		process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ROUTE_RESOLVED,
 									&cm_event);
 		/* we ack the event */
@@ -316,14 +316,14 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 		* in the operating system. All resources are tied to a particular PD.
 		* And accessing recourses across PD will result in a protection fault.
 		*/
-		pd = ibv_alloc_pd(cm_server_id->verbs);
+		pd = ibv_alloc_pd(cm_client_id->verbs);
 		/* Now we need a completion channel, were the I/O completion
 		* notifications are sent. Remember, this is different from connection
 		* management (CM) event notifications.
 		* A completion channel is also tied to an RDMA device, hence we will
 		* use cm_client_id->verbs.
 		*/
-		io_completion_channel = ibv_create_comp_channel(cm_server_id->verbs);
+		io_completion_channel = ibv_create_comp_channel(cm_client_id->verbs);
 		/* Now we create a completion queue (CQ) where actual I/O
 		* completion metadata is placed. The metadata is packed into a structure
 		* called struct ibv_wc (wc = work completion). ibv_wc has detailed
@@ -331,7 +331,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 		* is called "work" ;)
 		*/
 		client_cq =
-			ibv_create_cq(cm_server_id->verbs /* which device*/,
+			ibv_create_cq(cm_client_id->verbs /* which device*/,
 						CQ_CAPACITY /* maximum capacity*/,
 						NULL /* user context, not used here */,
 						io_completion_channel /* which IO completion channel */,
@@ -355,10 +355,10 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 		qp_init_attr.send_cq =
 			client_cq; /* Where should I notify for send completion operations */
 		/*Lets create a QP */
-		rdma_create_qp(cm_server_id /* which connection id */,
+		rdma_create_qp(cm_client_id /* which connection id */,
 							pd /* which protection domain*/,
 							&qp_init_attr /* Initial attributes */);
-		client_qp = cm_server_id->qp;
+		client_qp = cm_client_id->qp;
 
 
 
@@ -387,7 +387,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 		conn_param.initiator_depth = 3;
 		conn_param.responder_resources = 3;
 		conn_param.retry_count = 3;  // if fail, then how many times to retry
-		rdma_connect(cm_server_id, &conn_param);
+		rdma_connect(cm_client_id, &conn_param);
 		debug("waiting for cm event: RDMA_CM_EVENT_ESTABLISHED\n");
 		process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ESTABLISHED,
 									&cm_event);
