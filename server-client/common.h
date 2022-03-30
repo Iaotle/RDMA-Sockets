@@ -37,6 +37,7 @@
 #define LARGE_BUFF (1<<17) // 32KiB
 #define TEST_BUF_SIZE SMALL_BUFF
 
+int get_addr(char *dst, struct sockaddr *addr);
 const char* match_pattern(const unsigned char *buf, int size);
 void write_pattern(char *buf, int size);
 

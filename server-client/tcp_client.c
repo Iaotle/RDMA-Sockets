@@ -26,7 +26,6 @@
 #include <unistd.h>
 
 #include "common.h"
-#include "../src/rdma_common.h"
 
 // sudo tcpdump -i wlp2s0 tcp port 43211
 int main(int argc, char** argv)
@@ -76,7 +75,7 @@ int main(int argc, char** argv)
 
     ret = connect(server_fd, (struct sockaddr*)&server_addr, sizeof(server_addr));
     if ( 0 != ret) {
-        printf("Error: connection with the server failed, errno %d \n", errno);
+        printf("Error: connect failed, errno %d \n", errno);
         return errno;
     }
     inet_ntop( AF_INET, &server_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
@@ -86,6 +85,7 @@ int main(int argc, char** argv)
     // // write a pattern
     // write_pattern(tx_buffer, TEST_BUF_SIZE);
 
+	
     // // send test buffer
     // while (so_far < TEST_BUF_SIZE){
     //     ret = send(server_fd, tx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
@@ -96,6 +96,9 @@ int main(int argc, char** argv)
     //     so_far+=ret;
     //     printf("\t [send loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
     // }
+
+
+
 
     // printf("OK: buffer sent successfully \n");
     // printf("OK: waiting to receive data \n");
