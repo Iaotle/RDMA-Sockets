@@ -104,7 +104,12 @@ int main(int argc, char** argv)
 
     inet_ntop( AF_INET, &client_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("new incoming connection from %s \n", debug_buffer);
-	ret = recv(0, NULL, 0, 0);
+
+
+	char buf[4096] = "ABCDEFGHIJKLMNOP";
+	ret = recv(0, buf, 4096, 0);
+
+	printf("buffer got: %s\n", buf);
     // first recv the buffer, then tx it back as it is
 	// TODO: send/recv
     // so_far = 0;

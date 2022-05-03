@@ -82,7 +82,13 @@ int main(int argc, char** argv)
     printf("OK: connected to the server at %s \n", debug_buffer);
 
 
-	ret = send(0, NULL, 0, 0);
+
+	char* buf;
+	buf = aligned_alloc(1024, 4096);
+	buf = "strinog";
+	printf("sending buffer: %s\n", buf);
+	ret = send(0, (void*) buf, 4096, 0);
+
 	// // TODO: send/recv
     // // write a pattern
     // write_pattern(tx_buffer, TEST_BUF_SIZE);
