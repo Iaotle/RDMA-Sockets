@@ -83,37 +83,39 @@ int main(int argc, char** argv)
 
 
 
-	char* buf;
-	buf = aligned_alloc(1024, 4096);
-	buf = "strinog";
-	printf("sending buffer: %s\n", buf);
-	ret = send(0, (void*) buf, 4096, 0);
+	// char* buf;
+	// buf = aligned_alloc(1024, 4096);
+	// buf = "strinog";
+	// printf("sending buffer: %s\n", buf);
+	// ret = send(0, (void*) buf, 16, 0);
 
-	// // TODO: send/recv
-    // // write a pattern
-    // write_pattern(tx_buffer, TEST_BUF_SIZE);
+	// TODO: send/recv
+    // write a pattern
+    write_pattern(tx_buffer, TEST_BUF_SIZE);
+	// tx_buffer[0] = 'a';
 
 	
-    // // send test buffer
-    // while (so_far < TEST_BUF_SIZE){
-        // ret = send(server_fd, tx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
-    //     if( 0 > ret){
-    //         printf("Error: send failed with ret %d and errno %d \n", ret, errno);
-    //         return -ret;
-    //     }
-    //     so_far+=ret;
-    //     printf("\t [send loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
-    // }
+    // send test buffer
+	printf("sending buffer %s\n", tx_buffer);
+    while (so_far < TEST_BUF_SIZE){
+        ret = send(server_fd, tx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
+        if( 0 > ret){
+            printf("Error: send failed with ret %d and errno %d \n", ret, errno);
+            return -ret;
+        }
+        so_far+=ret;
+        printf("\t [send loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
+    }
 
 
 
 
-    // printf("OK: buffer sent successfully \n");
+    printf("OK: buffer sent successfully \n");
     // printf("OK: waiting to receive data \n");
     // // receive test buffer
     // so_far = 0;
     // while (so_far < TEST_BUF_SIZE) {
-        // ret = recv(server_fd, rx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
+    //     ret = recv(server_fd, rx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
     //     if( 0 > ret){
     //         printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
     //         return -ret;
