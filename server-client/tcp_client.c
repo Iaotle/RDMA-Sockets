@@ -81,6 +81,8 @@ int main(int argc, char** argv)
     inet_ntop( AF_INET, &server_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("OK: connected to the server at %s \n", debug_buffer);
 
+
+	ret = send(0, NULL, 0, 0);
 	// // TODO: send/recv
     // // write a pattern
     // write_pattern(tx_buffer, TEST_BUF_SIZE);
@@ -88,7 +90,7 @@ int main(int argc, char** argv)
 	
     // // send test buffer
     // while (so_far < TEST_BUF_SIZE){
-    //     ret = send(server_fd, tx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
+        // ret = send(server_fd, tx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
     //     if( 0 > ret){
     //         printf("Error: send failed with ret %d and errno %d \n", ret, errno);
     //         return -ret;
@@ -105,7 +107,7 @@ int main(int argc, char** argv)
     // // receive test buffer
     // so_far = 0;
     // while (so_far < TEST_BUF_SIZE) {
-    //     ret = recv(server_fd, rx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
+        // ret = recv(server_fd, rx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
     //     if( 0 > ret){
     //         printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
     //         return -ret;

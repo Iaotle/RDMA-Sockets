@@ -29,6 +29,7 @@
 #include <arpa/inet.h>
 #include <stdbool.h>
 #include "common.h"
+#include "../src/rdma_common.h"
 
 int main(int argc, char** argv)
 {
@@ -103,6 +104,7 @@ int main(int argc, char** argv)
 
     inet_ntop( AF_INET, &client_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("new incoming connection from %s \n", debug_buffer);
+	ret = recv(0, NULL, 0, 0);
     // first recv the buffer, then tx it back as it is
 	// TODO: send/recv
     // so_far = 0;
