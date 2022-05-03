@@ -40,28 +40,26 @@ static void timer_debug()
     print_debug("TIMERS: Total amount currently %d", cnt);
 }
 #else
-static void timer_debug()
-{
+
+static void timer_debug() {
     return;
 }
+
 #endif
 
-static void timer_free(struct timer *t)
-{
+static void timer_free(struct timer *t) {
     pthread_mutex_destroy(&t->lock);
     free(t);
 }
 
-static struct timer *timer_alloc()
-{
+static struct timer *timer_alloc() {
     struct timer *t = calloc(sizeof(struct timer), 1);
     pthread_mutex_init(&t->lock, NULL);
 
     return t;
 }
 
-static void timers_tick()
-{
+static void timers_tick() {
     struct list_head *item, *tmp = NULL;
     struct timer *t = NULL;
     int rc = 0;
@@ -105,8 +103,7 @@ static void timers_tick()
     pthread_mutex_unlock(&lock);
 }
 
-void timer_oneshot(uint32_t expire, void *(*handler)(void *), void *arg)
-{
+void timer_oneshot(uint32_t expire, void *(*handler)(void *), void *arg) {
     struct timer *t = timer_alloc();
 
     int tick = timer_get_tick();
@@ -127,8 +124,7 @@ void timer_oneshot(uint32_t expire, void *(*handler)(void *), void *arg)
     pthread_mutex_unlock(&lock);
 }
 
-struct timer *timer_add(uint32_t expire, void *(*handler)(void *), void *arg)
-{
+struct timer *timer_add(uint32_t expire, void *(*handler)(void *), void *arg) {
     struct timer *t = timer_alloc();
 
     int tick = timer_get_tick();
@@ -151,8 +147,7 @@ struct timer *timer_add(uint32_t expire, void *(*handler)(void *), void *arg)
     return t;
 }
 
-void timer_release(struct timer *t)
-{
+void timer_release(struct timer *t) {
     int rc = 0;
 
     if (!t) return;
@@ -167,8 +162,7 @@ void timer_release(struct timer *t)
     pthread_mutex_unlock(&t->lock);
 }
 
-void timer_cancel(struct timer *t)
-{
+void timer_cancel(struct timer *t) {
     int rc = 0;
 
     if (!t) return;
@@ -184,8 +178,7 @@ void timer_cancel(struct timer *t)
     pthread_mutex_unlock(&t->lock);
 }
 
-void *timers_start()
-{
+void *timers_start() {
     //10 millisecond timer loop
     while (1) {
         if (usleep(10000) != 0) {
@@ -199,8 +192,7 @@ void *timers_start()
     }
 }
 
-int timer_get_tick()
-{
+int timer_get_tick() {
     int copy = 0;
     pthread_rwlock_rdlock(&rwlock);
     copy = tick;

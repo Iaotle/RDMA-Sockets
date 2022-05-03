@@ -42,7 +42,7 @@ struct subuff {
     uint8_t *head;
     // Actual end of the buffer, do not modify
     uint8_t *end;
-    
+
     // Pointer to the current data portion
     uint8_t *data;
     // Length of the current data portion
@@ -62,36 +62,43 @@ struct subuff_head {
 };
 
 struct subuff *alloc_sub(unsigned int size);
+
 void free_sub(struct subuff *skb);
+
 uint8_t *sub_push(struct subuff *skb, unsigned int len);
+
 uint8_t *sub_head(struct subuff *skb);
+
 void *sub_reserve(struct subuff *skb, unsigned int len);
 
-static inline uint32_t sub_queue_len(const struct subuff_head *list)
-{
+static inline uint32_t sub_queue_len(const struct subuff_head *list) {
     return list->queue_len;
 }
 
-static inline void sub_queue_init(struct subuff_head *list)
-{
+static inline void sub_queue_init(struct subuff_head *list) {
     list_init(&list->head);
     list->queue_len = 0;
 }
 
-static inline void sub_queue_add(struct subuff_head *list, struct subuff *new, struct subuff *next)
+static inline void sub_queue_add(struct subuff_head *list, struct subuff *
+
+new,
+struct subuff *next
+)
 {
-    list_add_tail(&new->list, &next->list);
-    list->queue_len += 1;
+list_add_tail(&new->list, &next->list);
+list->queue_len += 1;
 }
 
-static inline void sub_queue_tail(struct subuff_head *list, struct subuff *new)
+static inline void sub_queue_tail(struct subuff_head *list, struct subuff *
+
+new)
 {
-    list_add_tail(&new->list, &list->head);
-    list->queue_len += 1;
+list_add_tail(&new->list, &list->head);
+list->queue_len += 1;
 }
 
-static inline struct subuff *sub_dequeue(struct subuff_head *list)
-{
+static inline struct subuff *sub_dequeue(struct subuff_head *list) {
     struct subuff *skb = list_first_entry(&list->head, struct subuff, list);
     list_del(&skb->list);
     list->queue_len -= 1;
@@ -99,20 +106,17 @@ static inline struct subuff *sub_dequeue(struct subuff_head *list)
     return skb;
 }
 
-static inline int sub_queue_empty(const struct subuff_head *list)
-{
+static inline int sub_queue_empty(const struct subuff_head *list) {
     return sub_queue_len(list) < 1;
 }
 
-static inline struct subuff *sub_peek(struct subuff_head *list)
-{
+static inline struct subuff *sub_peek(struct subuff_head *list) {
     if (sub_queue_empty(list)) return NULL;
 
     return list_first_entry(&list->head, struct subuff, list);
 }
 
-static inline void sub_queue_free(struct subuff_head *list)
-{
+static inline void sub_queue_free(struct subuff_head *list) {
     struct subuff *skb = NULL;
 
     while ((skb = sub_peek(list)) != NULL) {

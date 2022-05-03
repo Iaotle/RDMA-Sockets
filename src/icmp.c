@@ -19,15 +19,13 @@
 #include "ip.h"
 #include "utilities.h"
 
-void icmp_rx(struct subuff *sub)
-{
+void icmp_rx(struct subuff *sub) {
     //FIXME: implement your ICMP packet processing implementation here
     //figure out various type of ICMP packets, and implement the ECHO response type (icmp_reply)
     free_sub(sub);
 }
 
-void icmp_reply(struct subuff *sub)
-{
+void icmp_reply(struct subuff *sub) {
     //FIXME: implement your ICMP reply implementation here
     // preapre an ICMP response buffer
     // send it out on ip_ouput(...)

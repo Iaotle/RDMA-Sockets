@@ -72,41 +72,42 @@
 #define debug_arp_cache(str, entry)
 #endif
 
-struct arp_ipv4
-{
+struct arp_ipv4 {
     uint8_t src_mac[6];
     uint32_t src_ip;
     uint8_t dst_mac[6];
     uint32_t dst_ip;
 } __attribute__((packed));
 
-struct arp_hdr
-{
+struct arp_hdr {
     uint16_t hwtype;
     uint16_t protype;
     uint8_t hwsize;
     uint8_t prosize;
     uint16_t opcode;
-    uint8_t  data[];
+    uint8_t data[];
 } __attribute__((packed));
 
-struct arp_cache_entry
-{
+struct arp_cache_entry {
     struct list_head list;
     unsigned int state;
     struct arp_ipv4 arpIpv4;
 };
 
 void arp_init();
-void free_arp();
-void arp_rx(struct subuff *skb);
-void arp_reply(struct subuff *skb, struct anp_netdev *netdev);
-int arp_request(uint32_t src_ip, uint32_t dst_ip, struct anp_netdev *netdev);
-unsigned char* arp_get_hwaddr(uint32_t src_ip);
 
-static inline struct arp_hdr *arp_hdr(struct subuff *sub)
-{
-    return (struct arp_hdr *)(sub->head + ETH_HDR_LEN);
+void free_arp();
+
+void arp_rx(struct subuff *skb);
+
+void arp_reply(struct subuff *skb, struct anp_netdev *netdev);
+
+int arp_request(uint32_t src_ip, uint32_t dst_ip, struct anp_netdev *netdev);
+
+unsigned char *arp_get_hwaddr(uint32_t src_ip);
+
+static inline struct arp_hdr *arp_hdr(struct subuff *sub) {
+    return (struct arp_hdr *) (sub->head + ETH_HDR_LEN);
 }
 
 #define ARP_HDR_LEN sizeof(struct arp_hdr)

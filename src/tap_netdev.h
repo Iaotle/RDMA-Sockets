@@ -29,8 +29,11 @@ struct tap_netdev {
 
 
 char *get_tdev_name();
+
 void tdev_init(void);
+
 int tdev_read(char *buf, int len);
+
 int tdev_write(char *buf, int len);
 
 #endif // ANP_DEV_MANAGEMENT_H

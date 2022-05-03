@@ -26,19 +26,18 @@
 
 /// ARP is defined in : https://tools.ietf.org/html/rfc826
 
-static uint8_t broadcast_hw[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+static uint8_t broadcast_hw[] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 static LIST_HEAD(arp_cache);
 
 // allocate an ARP packet
-static struct subuff *alloc_arp_sub()
-{
+static struct subuff *alloc_arp_sub() {
     struct subuff *sub = alloc_sub(ETH_HDR_LEN + ARP_HDR_LEN + ARP_DATA_LEN);
     sub_reserve(sub, ETH_HDR_LEN + ARP_HDR_LEN + ARP_DATA_LEN);
     sub->protocol = htons(ETH_P_ARP);
     return sub;
 }
 
-static int process_arp_entry(struct arp_hdr *hdr, struct arp_ipv4 *data){
+static int process_arp_entry(struct arp_hdr *hdr, struct arp_ipv4 *data) {
     struct list_head *item;
     struct arp_cache_entry *entry;
     list_for_each(item, &arp_cache) {
@@ -62,13 +61,11 @@ static int process_arp_entry(struct arp_hdr *hdr, struct arp_ipv4 *data){
     return 0;
 }
 
-void arp_init()
-{
+void arp_init() {
 
 }
 
-void arp_rx(struct subuff *skb)
-{
+void arp_rx(struct subuff *skb) {
     struct arp_hdr *arphdr;
     struct arp_ipv4 *arpdata;
     struct anp_netdev *netdev;
@@ -119,8 +116,7 @@ void arp_rx(struct subuff *skb)
     free_sub(skb);
 }
 
-int arp_request(uint32_t src_ip, uint32_t dst_ip, struct anp_netdev *netdev)
-{
+int arp_request(uint32_t src_ip, uint32_t dst_ip, struct anp_netdev *netdev) {
     struct subuff *sub;
     struct arp_hdr *arp;
     struct arp_ipv4 *payload;
@@ -164,8 +160,7 @@ int arp_request(uint32_t src_ip, uint32_t dst_ip, struct anp_netdev *netdev)
     return rc;
 }
 
-void arp_reply(struct subuff *sub, struct anp_netdev *netdev)
-{
+void arp_reply(struct subuff *sub, struct anp_netdev *netdev) {
     struct arp_ipv4 *arpdata = NULL;
     struct arp_hdr *arphdr = arp_hdr(sub);
 
@@ -204,15 +199,14 @@ void arp_reply(struct subuff *sub, struct anp_netdev *netdev)
  * Returns the HW address of the given source IP address
  * NULL if not found
  */
-unsigned char* arp_get_hwaddr(uint32_t lookup_ip)
-{
+unsigned char *arp_get_hwaddr(uint32_t lookup_ip) {
     struct list_head *item;
     struct arp_cache_entry *entry;
     list_for_each(item, &arp_cache) {
         entry = list_entry(item, struct arp_cache_entry, list);
         if (entry->state == ARP_RESOLVED &&
             entry->arpIpv4.src_ip == lookup_ip) {
-            uint8_t *copy = (uint8_t *) &entry->arpIpv4.src_mac;
+            uint8_t *copy = (uint8_t * ) & entry->arpIpv4.src_mac;
             return copy;
         }
     }
@@ -220,8 +214,7 @@ unsigned char* arp_get_hwaddr(uint32_t lookup_ip)
     return NULL;
 }
 
-void free_arp_cache()
-{
+void free_arp_cache() {
     struct list_head *item, *tmp;
     struct arp_cache_entry *entry;
     list_for_each_safe(item, tmp, &arp_cache) {

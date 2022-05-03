@@ -23,14 +23,12 @@
 #include "anp_netdev.h"
 #include "arp.h"
 
-void ip_send_check(struct iphdr *ihdr)
-{
+void ip_send_check(struct iphdr *ihdr) {
     uint32_t csum = do_csum(ihdr, ihdr->ihl * 4, 0);
     ihdr->csum = csum;
 }
 
-int dst_neigh_output(struct subuff *sub)
-{
+int dst_neigh_output(struct subuff *sub) {
     struct iphdr *iphdr = IP_HDR_FROM_SUB(sub);
     struct anp_netdev *anp_netdev = sub->dev;
     struct rtentry *rt = sub->rt;
@@ -53,8 +51,7 @@ int dst_neigh_output(struct subuff *sub)
     }
 }
 
-int ip_output(uint32_t dst_ip_addr, struct subuff *sub)
-{
+int ip_output(uint32_t dst_ip_addr, struct subuff *sub) {
     struct rtentry *rt;
     struct iphdr *ihdr = IP_HDR_FROM_SUB(sub);
 

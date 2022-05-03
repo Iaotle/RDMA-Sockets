@@ -31,10 +31,9 @@ struct anp_netdev *cdev_ext;
 
 volatile bool stop = false;
 
-static struct anp_netdev *netdev_alloc(char *addr, char *hwaddr, uint32_t mtu)
-{
+static struct anp_netdev *netdev_alloc(char *addr, char *hwaddr, uint32_t mtu) {
     struct anp_netdev *dev = calloc(1, sizeof(struct anp_netdev));
-    if( NULL == dev){
+    if (NULL == dev) {
         printf("Error: dev calloc failed \n");
         return NULL;
     }
@@ -50,52 +49,48 @@ static struct anp_netdev *netdev_alloc(char *addr, char *hwaddr, uint32_t mtu)
     return dev;
 }
 
-void client_netdev_init()
-{
+void client_netdev_init() {
     cdev_ext = netdev_alloc(ANP_IP_CLIENT_EXT, ANP_MAC_CLIENT_EXT, ANP_MTU_15);
     cdev_lo = netdev_alloc(ANP_IP_LO, ANP_MAC_CLIENT_LO, ANP_MTU_15);
 }
 
 
-static int get_mac(const char *iface, uint8_t *mac)
-{
+static int get_mac(const char *iface, uint8_t *mac) {
     int fd;
     struct ifreq ifr;
     fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if( fd < 0){
+    if (fd < 0) {
         printf(" fd failed \n");
         exit(-1);
     }
     ifr.ifr_addr.sa_family = AF_INET;
-    strncpy(ifr.ifr_name , iface , IFNAMSIZ-1);
+    strncpy(ifr.ifr_name, iface, IFNAMSIZ - 1);
     int ret = ioctl(fd, SIOCGIFHWADDR, &ifr);
-    if( ret < 0 ){
+    if (ret < 0) {
         printf("ioctl failed \n");
         exit(0);
     }
     close(fd);
-    for(int i = 0; i < 6; i++){
+    for (int i = 0; i < 6; i++) {
         mac[i] = ifr.ifr_hwaddr.sa_data[i];
     }
     return 0;
 }
 
 
-int netdev_transmit(struct subuff *sub, uint8_t *dst_hw, uint16_t ethertype)
-{
+int netdev_transmit(struct subuff *sub, uint8_t *dst_hw, uint16_t ethertype) {
     struct anp_netdev *dev = sub->dev;
     sub_push(sub, ETH_HDR_LEN);
-    struct eth_hdr *hdr = (struct eth_hdr *)sub->data;
+    struct eth_hdr *hdr = (struct eth_hdr *) sub->data;
     int ret = 0;
     memcpy(hdr->dmac, dst_hw, dev->addr_len);
     memcpy(hdr->smac, dev->hwaddr, dev->addr_len);
     hdr->ethertype = htons(ethertype);
-    ret = tdev_write((char *)sub->data, sub->len);
+    ret = tdev_write((char *) sub->data, sub->len);
     return ret;
 }
 
-static int process_packet(struct subuff *sub)
-{
+static int process_packet(struct subuff *sub) {
     struct eth_hdr *hdr = eth_hdr(sub);
     switch (hdr->ethertype) {
         case ETH_P_ARP:
@@ -116,14 +111,13 @@ static int process_packet(struct subuff *sub)
     return 0;
 }
 
-void *netdev_rx_loop()
-{
+void *netdev_rx_loop() {
     int ret;
     while (!stop) {
         // The max size of ethernet packet over 1500 MTU (including additional headers */
         // https://searchnetworking.techtarget.com/answer/Minimum-and-maximum-Ethernet-frame-sizes
         struct subuff *sub = alloc_sub(ANP_MTU_15_MAX_SIZE);
-        ret = tdev_read((char *)sub->data, ANP_MTU_15_MAX_SIZE);
+        ret = tdev_read((char *) sub->data, ANP_MTU_15_MAX_SIZE);
         if (ret < 0) {
             printf("Error in reading the tap device, %d and errno %d \n", ret, errno);
             free_sub(sub);
@@ -135,8 +129,7 @@ void *netdev_rx_loop()
     return NULL;
 }
 
-struct anp_netdev* netdev_get(uint32_t sip)
-{
+struct anp_netdev *netdev_get(uint32_t sip) {
     if (cdev_ext->addr == sip) {
         return cdev_ext;
     } else {
@@ -144,8 +137,7 @@ struct anp_netdev* netdev_get(uint32_t sip)
     }
 }
 
-void free_netdev()
-{
+void free_netdev() {
     free(cdev_lo);
     free(cdev_ext);
 }

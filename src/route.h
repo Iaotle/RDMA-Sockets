@@ -37,7 +37,9 @@ struct rtentry {
 };
 
 void route_init();
+
 struct rtentry *route_lookup(uint32_t daddr);
+
 void free_routes();
 
 #endif //ANPNETSTACK_ROUTE_H

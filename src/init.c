@@ -24,7 +24,7 @@
 #include "anpwrapper.h"
 #include "timer.h"
 
-extern char**environ;
+extern char **environ;
 
 #define THREAD_RX      0
 #define THREAD_TIMER   1
@@ -32,10 +32,9 @@ extern char**environ;
 
 static pthread_t threads[THREAD_MAX];
 
-static void create_thread(pthread_t id, void *(*func) (void *))
-{
+static void create_thread(pthread_t id, void *(*func)(void *)) {
     int ret = pthread_create(&threads[id], NULL, func, NULL);
-    if ( 0 != ret) {
+    if (0 != ret) {
         printf("thread creation failed %d , errno %d \n", ret, errno);
         exit(-errno);
     }
@@ -46,8 +45,7 @@ void ctrl_c_handler(int val) {
     stop = true;
 }
 
-static void init_threads()
-{
+static void init_threads() {
     // we have two async activities
     create_thread(THREAD_RX, netdev_rx_loop);
     create_thread(THREAD_TIMER, timers_start);

@@ -35,6 +35,7 @@ struct icmp {
 } __attribute__((packed));
 
 void icmp_rx(struct subuff *sub);
+
 void icmp_reply(struct subuff *sub);
 
 #endif //ANPNETSTACK_ICMP_H

@@ -21,8 +21,7 @@
 #include "icmp.h"
 #include "config.h"
 
-int ip_rx(struct subuff *sub)
-{
+int ip_rx(struct subuff *sub) {
     struct iphdr *ih = IP_HDR_FROM_SUB(sub);
     uint16_t csum = -1;
 
@@ -32,7 +31,7 @@ int ip_rx(struct subuff *sub)
     }
 
     if (ih->ihl < 5) {
-        printf("IP packet header is too short, expected atleast 20 bytes, got %d \n", ((ih->ihl)<<2));
+        printf("IP packet header is too short, expected atleast 20 bytes, got %d \n", ((ih->ihl) << 2));
         goto drop_pkt;
     }
 
@@ -65,10 +64,10 @@ int ip_rx(struct subuff *sub)
             printf("incoming TCP packet, further logic NYI \n");
             goto drop_pkt;
         default:
-            #ifdef ANP_PRINT_UNKNOWN_PACKETS
+#ifdef ANP_PRINT_UNKNOWN_PACKETS
             debug_ip_hdr("in", ih);
             printf("Error: Unknown IP header proto %d \n", ih->proto);
-            #endif
+#endif
             goto drop_pkt;
     }
     drop_pkt:

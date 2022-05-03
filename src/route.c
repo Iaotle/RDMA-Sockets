@@ -29,8 +29,7 @@ extern struct anp_netdev *cdev_lo;
 extern struct anp_netdev *cdev_ext;
 
 static struct rtentry *route_alloc(uint32_t dst, uint32_t gateway, uint32_t netmask,
-                                   uint8_t flags, struct anp_netdev *dev)
-{
+                                   uint8_t flags, struct anp_netdev *dev) {
     struct rtentry *rt = malloc(sizeof(struct rtentry));
     list_init(&rt->list);
 
@@ -44,14 +43,12 @@ static struct rtentry *route_alloc(uint32_t dst, uint32_t gateway, uint32_t netm
 }
 
 void route_add(uint32_t dst, uint32_t gateway, uint32_t netmask, uint8_t flags,
-               struct anp_netdev *dev)
-{
+               struct anp_netdev *dev) {
     struct rtentry *rt = route_alloc(dst, gateway, netmask, flags, dev);
     list_add_tail(&rt->list, &routes);
 }
 
-void route_init()
-{
+void route_init() {
     // local delivery over loopback
     route_add(cdev_lo->addr, 0, 0xff000000, RT_LOOPBACK, cdev_lo);
     //local deliver over IP
@@ -61,8 +58,7 @@ void route_init()
     route_add(0, ip_str_to_h32(ANP_IP_TAP_DEV), 0, RT_GATEWAY, cdev_ext);
 }
 
-struct rtentry *route_lookup(uint32_t daddr)
-{
+struct rtentry *route_lookup(uint32_t daddr) {
     struct list_head *item;
     struct rtentry *rt = NULL;
     list_for_each(item, &routes) {
@@ -73,8 +69,7 @@ struct rtentry *route_lookup(uint32_t daddr)
     return rt;
 }
 
-void free_routes()
-{
+void free_routes() {
     struct list_head *item, *tmp;
     struct rtentry *rt;
 

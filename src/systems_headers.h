@@ -19,6 +19,7 @@
 #define ANP_SYSTEMS_HEADERS_H
 
 #define _GNU_SOURCE
+
 #include <unistd.h>
 #include <sys/types.h>
 
@@ -54,6 +55,7 @@
 
 #include <unistd.h>
 #include <sys/syscall.h>
+
 #define gettid() syscall(SYS_gettid)
 
 #endif //ANP_SYSTEMS_HEADERS_H

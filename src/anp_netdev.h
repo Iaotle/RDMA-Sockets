@@ -33,9 +33,13 @@ struct anp_netdev {
 };
 
 void client_netdev_init();
+
 int netdev_transmit(struct subuff *skb, uint8_t *dst, uint16_t ethertype);
-struct anp_netdev* netdev_get(uint32_t sip);
+
+struct anp_netdev *netdev_get(uint32_t sip);
+
 void *netdev_rx_loop();
+
 void free_netdev();
 
 #endif //ANPNETSTACK_ANP_NETDEV_H

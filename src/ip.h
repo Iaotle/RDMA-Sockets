@@ -55,8 +55,8 @@
 
 // header references: https://www.blackmagicboxes.com/?page_id=237
 struct iphdr {
-    uint8_t ihl : 4;
-    uint8_t version : 4;
+    uint8_t ihl: 4;
+    uint8_t version: 4;
     uint8_t tos;
     uint16_t len;
     uint16_t id;
@@ -74,6 +74,7 @@ struct iphdr {
 #define IP_HDR_FROM_SUB(_sub) (struct iphdr *)(_sub->head + ETH_HDR_LEN);
 
 int ip_rx(struct subuff *);
+
 int ip_output(uint32_t dst_ip_addr, struct subuff *);
 
 #endif //ANPNETSTACK_IP_H

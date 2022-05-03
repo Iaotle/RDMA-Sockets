@@ -25,18 +25,18 @@
 
 static struct tap_netdev *_tdev = NULL;
 
-char *get_tdev_name(){
+char *get_tdev_name() {
     return _tdev->devname;
 }
+
 /*
  * Taken from Kernel Documentation/networking/tuntap.txt
  */
-static int tdev_alloc(struct tap_netdev *dev)
-{
+static int tdev_alloc(struct tap_netdev *dev) {
     struct ifreq ifr;
     int fd, err;
     fd = open("/dev/net/tap", O_RDWR);
-    if( 0 > fd ) {
+    if (0 > fd) {
         printf("Cannot open any TUN/TAP dev, errno %d \n", errno);
         printf("Make sure one exists, otherwise just create one with as shown below \n >sudo mknod /dev/net/tap c 10 200\n");
         printf("Alternatively you can check the bin directory, sh-make-tun-dev.sh\n");
@@ -51,12 +51,12 @@ static int tdev_alloc(struct tap_netdev *dev)
      * on the TAP device (Ethernet), not the TUN (ip level)
      */
     ifr.ifr_flags = IFF_TAP | IFF_NO_PI;
-    if( NULL != dev->devname ) {
+    if (NULL != dev->devname) {
         // there is name passed, then use it
         strncpy(ifr.ifr_name, dev->devname, IFNAMSIZ);
     }
     err = ioctl(fd, TUNSETIFF, (void *) &ifr);
-    if( 0 > err ){
+    if (0 > err) {
         printf("ERR: Could not ioctl tun device, errno %d err %d \n", errno, err);
         close(fd);
         return err;
@@ -68,24 +68,23 @@ static int tdev_alloc(struct tap_netdev *dev)
 }
 
 
-void tdev_init(void)
-{
+void tdev_init(void) {
     _tdev = calloc(sizeof(struct tap_netdev), 1);
     int ret = -1;
-    if(NULL == _tdev){
+    if (NULL == _tdev) {
         printf("error null value, illegal argument \n");
         exit(-EINVAL);
     }
     _tdev->devname = calloc(1, IFNAMSIZ);
     ret = tdev_alloc(_tdev);
-    if(0 != ret){
+    if (0 != ret) {
         printf("ERROR device alloc failed, ret %d, errno %d \n", ret, errno);
         exit(-ret);
     }
     printf("tap device OK, %s \n", _tdev->devname);
     // bring the device up
     ret = run_bash_command("ip link set dev %s up", _tdev->devname);
-    if(0 != ret){
+    if (0 != ret) {
         printf("ERROR failed getting the device up, errno %d \n", errno);
         exit(-ret);
     }
@@ -106,12 +105,10 @@ void tdev_init(void)
     printf("OK: setting the device address %s \n", ANP_IP_TAP_DEV);
 }
 
-int tdev_read(char *buf, int len)
-{
+int tdev_read(char *buf, int len) {
     return read(_tdev->tun_fd, buf, len);
 }
 
-int tdev_write(char *buf, int len)
-{
+int tdev_write(char *buf, int len) {
     return write(_tdev->tun_fd, buf, len);
 }

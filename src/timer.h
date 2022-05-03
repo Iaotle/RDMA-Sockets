@@ -55,16 +55,23 @@ struct timer {
     int refcnt;
     uint32_t expires;
     int cancelled;
+
     void *(*handler)(void *);
+
     void *arg;
     pthread_mutex_t lock;
 };
 
 struct timer *timer_add(uint32_t expire, void *(*handler)(void *), void *arg);
+
 void timer_oneshot(uint32_t expire, void *(*handler)(void *), void *arg);
+
 void timer_release(struct timer *t);
+
 void timer_cancel(struct timer *t);
+
 void *timers_start();
+
 int timer_get_tick();
 
 #endif //ANPNETSTACK_TIMER_H
