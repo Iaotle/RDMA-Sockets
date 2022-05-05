@@ -88,6 +88,49 @@ static char *src = NULL, *dst = NULL; //TODO: actually just get this from the pa
 struct rdma_cm_event *cm_event = NULL;
 
 
+
+const char *mapStatusToType(enum ibv_wc_status status) {
+	switch (status) {
+		case IBV_WC_SUCCESS: return "IBV_WC_SUCCESS";
+		case IBV_WC_LOC_LEN_ERR: return "IBV_WC_LOC_LEN_ERR";
+		case IBV_WC_LOC_QP_OP_ERR: return "IBV_WC_LOC_QP_OP_ERR";
+		case IBV_WC_LOC_EEC_OP_ERR: return "IBV_WC_LOC_EEC_OP_ERR";
+		case IBV_WC_LOC_PROT_ERR: return "IBV_WC_LOC_PROT_ERR";
+		case IBV_WC_WR_FLUSH_ERR: return "IBV_WC_WR_FLUSH_ERR";
+		case IBV_WC_MW_BIND_ERR: return "IBV_WC_MW_BIND_ERR";
+		case IBV_WC_BAD_RESP_ERR: return "IBV_WC_BAD_RESP_ERR";
+		case IBV_WC_LOC_ACCESS_ERR: return "IBV_WC_LOC_ACCESS_ERR";
+		case IBV_WC_REM_INV_REQ_ERR: return "IBV_WC_REM_INV_REQ_ERR";
+		case IBV_WC_REM_ACCESS_ERR: return "IBV_WC_REM_ACCESS_ERR";
+		case IBV_WC_REM_OP_ERR: return "IBV_WC_REM_OP_ERR";
+		case IBV_WC_RETRY_EXC_ERR: return "IBV_WC_RETRY_EXC_ERR";
+		case IBV_WC_RNR_RETRY_EXC_ERR: return "IBV_WC_RNR_RETRY_EXC_ERR";
+		case IBV_WC_LOC_RDD_VIOL_ERR: return "IBV_WC_LOC_RDD_VIOL_ERR";
+		case IBV_WC_REM_INV_RD_REQ_ERR: return "IBV_WC_REM_INV_RD_REQ_ERR";
+		case IBV_WC_REM_ABORT_ERR: return "IBV_WC_REM_ABORT_ERR";
+		case IBV_WC_INV_EECN_ERR: return "IBV_WC_INV_EECN_ERR";
+		case IBV_WC_INV_EEC_STATE_ERR: return "IBV_WC_INV_EEC_STATE_ERR";
+		case IBV_WC_FATAL_ERR: return "IBV_WC_FATAL_ERR";
+		case IBV_WC_RESP_TIMEOUT_ERR: return "IBV_WC_RESP_TIMEOUT_ERR";
+		case IBV_WC_GENERAL_ERR: return "IBV_WC_GENERAL_ERR";
+	}
+}
+
+const char *mapOpcodeToType(enum ibv_wc_opcode opcode) {
+	switch (opcode) {
+		case IBV_WC_SEND: return "IBV_WC_SEND";
+		case IBV_WC_RDMA_WRITE: return "IBV_WC_RDMA_WRITE";
+		case IBV_WC_RDMA_READ: return "IBV_WC_RDMA_READ";
+		case IBV_WC_COMP_SWAP: return "IBV_WC_COMP_SWAP";
+		case IBV_WC_FETCH_ADD: return "IBV_WC_FETCH_ADD";
+		case IBV_WC_BIND_MW: return "IBV_WC_BIND_MW";
+		case IBV_WC_LOCAL_INV: return "IBV_WC_LOCAL_INV";
+		case IBV_WC_TSO: return "IBV_WC_TSO";
+	}
+}
+
+
+
 static int is_socket_supported(int domain, int type, int protocol) {
     if (domain != AF_INET) {
         return 0;
@@ -339,21 +382,6 @@ int accept(int socket, struct sockaddr *restrict address, socklen_t *restrict
         rdma_error("Failed to acknowledge the cm event %d\n", -errno);
         return -errno;
     }
-
-    // send server metadata to client
-    struct ibv_wc wc;
-    ret = -1;
-    /* Now, we first wait for the client to start the communication by
-     * sending the server its metadata info. The server does not use it
-     * in our example. We will receive a work completion notification for
-     * our pre-posted receive request.
-     */
-    ret = process_work_completion_events(io_completion_channel, &wc, 1);
-    if (ret != 1) {
-        rdma_error("Failed to receive , ret = %d \n", ret);
-        return ret;
-    }
-    return ret;
 }
 
 int bind(int socket, const struct sockaddr *server_sockaddr,
@@ -449,20 +477,18 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
             return ret;
         }
         debug("Server sent us its buffer location and credentials, showing \n");
-        show_rdma_buffer_attr(&server_metadata_attr);
-        // dst = server_metadata_attr.address;
-
-
+        show_rdma_buffer_attr(&server_metadata_attr); // TODO this is a client side struct, should be made generic
 
         // remote mem ops
         ret = -1;
-        client_dst_mr = rdma_buffer_register(pd,
+        static struct ibv_mr *dst_mr;
+		dst_mr = rdma_buffer_register(pd,
                                              dst,
                                              len,
-                                             (IBV_ACCESS_LOCAL_WRITE |
+                                             (IBV_ACCESS_LOCAL_WRITE  |
                                               IBV_ACCESS_REMOTE_WRITE |
                                               IBV_ACCESS_REMOTE_READ));
-        if (!client_dst_mr) {
+        if (!dst_mr) {
             rdma_error("We failed to create the destination buffer, -ENOMEM\n");
             return -ENOMEM;
         }
@@ -479,8 +505,8 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
         send_wr.opcode = IBV_WR_RDMA_WRITE;
         send_wr.send_flags = IBV_SEND_SIGNALED;
         /* we have to tell server side info for RDMA */
-        send_wr.wr.rdma.rkey = server_metadata_attr.stag.remote_stag;
-        send_wr.wr.rdma.remote_addr = server_metadata_attr.address;
+        send_wr.wr.rdma.rkey = server_metadata_attr.stag.remote_stag; // TODO this is a client side struct, should be made generic
+        send_wr.wr.rdma.remote_addr = server_metadata_attr.address; // TODO this is a client side struct, should be made generic
         /* Now we post it */
         ret = ibv_post_send(qp,
                             &send_wr,
@@ -500,9 +526,9 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
         }
         debug("Client side WRITE is complete \n");
         /* Now we prepare a READ using same variables but for destination */
-        send_sge.addr = (uint64_t) client_dst_mr->addr;
-        send_sge.length = (uint32_t) client_dst_mr->length;
-        send_sge.lkey = client_dst_mr->lkey;
+        send_sge.addr = (uint64_t) dst_mr->addr;
+        send_sge.length = (uint32_t) dst_mr->length;
+        send_sge.lkey = dst_mr->lkey;
         /* now we link to the send work request */
         bzero(&send_wr, sizeof(send_wr));
         send_wr.sg_list = &send_sge;
@@ -510,8 +536,8 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
         send_wr.opcode = IBV_WR_RDMA_READ;
         send_wr.send_flags = IBV_SEND_SIGNALED;
         /* we have to tell server side info for RDMA */
-        send_wr.wr.rdma.rkey = server_metadata_attr.stag.remote_stag;
-        send_wr.wr.rdma.remote_addr = server_metadata_attr.address;
+        send_wr.wr.rdma.rkey = server_metadata_attr.stag.remote_stag; // TODO this is a client side struct, should be made generic
+        send_wr.wr.rdma.remote_addr = server_metadata_attr.address; // TODO this is a client side struct, should be made generic
         /* Now we post it */
         ret = ibv_post_send(qp,
                             &send_wr,
@@ -547,7 +573,7 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
     return _send(sockfd, buf, len, flags);
 }
 
-ssize_t recv(int sockfd, void *buf, size_t len, int flags) { // active working func
+ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
     // FIXME -- you can remember the file descriptors that you have generated in
     // the socket call and match them here
     bool is_anp_sockfd = true;
@@ -563,49 +589,66 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) { // active working f
         // printf("A new connection is accepted from %s \n",
         // 		inet_ntoa(remote_sockaddr.sin_addr));
 
+		    // send server metadata to client
+		struct ibv_wc wc;
+		int ret = -1;
+		/* Now, we first wait for the client to start the communication by
+		* sending the server its metadata info. The server does not use it
+		* in our example. We will receive a work completion notification for
+		* our pre-posted receive request.
+		*/
+		ret = process_work_completion_events(io_completion_channel, &wc, 1);
+		if (ret != 1) {
+			rdma_error("Failed to receive , ret = %d \n", ret);
+			return ret;
+		}
+
 
         /* if all good, then we should have client's buffer information, let's see */
         printf("Client side buffer information is received...\n");
         show_rdma_buffer_attr(&client_metadata_attr);
         printf("The client has requested buffer length of : %u bytes \n",
                client_metadata_attr.length);
-        /* We need to setup requested memory buffer. This is where the client will
-        * do RDMA READs and WRITEs. */
-        server_buffer_mr = rdma_buffer_alloc(pd /* which protection domain */,
+        /* We need to setup requested memory buffer. This is where the sender will
+        * do RDMA WRITE. */
+        struct ibv_mr *receiver_buffer_mr = rdma_buffer_alloc(pd /* which protection domain */,
                                              client_metadata_attr.length /* what size to allocate */,
                                              (IBV_ACCESS_LOCAL_WRITE |
                                               IBV_ACCESS_REMOTE_READ |
-                                              IBV_ACCESS_REMOTE_WRITE) /* access permissions */);
-        if (!server_buffer_mr) {
-            rdma_error("Server failed to create a buffer \n");
+                                              IBV_ACCESS_REMOTE_WRITE), /* access permissions */
+											  buf);
+        if (!receiver_buffer_mr) {
+            rdma_error("Receiver failed to create a buffer \n");
             /* we assume that it is due to out of memory error */
             return -ENOMEM;
         }
         /* This buffer is used to transmit information about the above
-         * buffer to the client. So this contains the metadata about the server
+         * buffer to the client. So this contains the metadata about the receiver
          * buffer. Hence this is called metadata buffer. Since this is already
          * on allocated, we just register it.
          * We need to prepare a send I/O operation that will tell the
-         * client the address of the server buffer.
+         * client the address of the receiver buffer.
          */
-        server_metadata_attr.address = (uint64_t) server_buffer_mr->addr;
-        server_metadata_attr.length = (uint32_t) server_buffer_mr->length;
-        server_metadata_attr.stag.local_stag = (uint32_t) server_buffer_mr->lkey;
+        struct rdma_buffer_attr receiver_metadata_attr;
+		receiver_metadata_attr.address = (uint64_t) receiver_buffer_mr->addr;
+        receiver_metadata_attr.length = (uint32_t) receiver_buffer_mr->length;
+        receiver_metadata_attr.stag.local_stag = (uint32_t) receiver_buffer_mr->lkey;
         server_metadata_mr = rdma_buffer_register(pd /* which protection domain*/,
-                                                  &server_metadata_attr /* which memory to register */,
-                                                  sizeof(server_metadata_attr) /* what is the size of memory */,
+                                                  &receiver_metadata_attr /* which memory to register */,
+                                                  sizeof(receiver_metadata_attr) /* what is the size of memory */,
                                                   IBV_ACCESS_LOCAL_WRITE /* what access permission */);
         if (!server_metadata_mr) {
-            rdma_error("Server failed to create to hold server metadata \n");
+            rdma_error("Receiver failed to create to hold receiver metadata \n");
             /* we assume that this is due to out of memory error */
             return -ENOMEM;
         }
+
         /* We need to transmit this buffer. So we create a send request.
          * A send request consists of multiple SGE elements. In our case, we only
          * have one
          */
-        server_send_sge.addr = (uint64_t) & server_metadata_attr;
-        server_send_sge.length = sizeof(server_metadata_attr);
+        server_send_sge.addr = (uint64_t) & receiver_metadata_attr;
+        server_send_sge.length = sizeof(receiver_metadata_attr);
         server_send_sge.lkey = server_metadata_mr->lkey;
         /* now we link this sge to the send request */
         bzero(&server_send_wr, sizeof(server_send_wr));
@@ -614,27 +657,38 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) { // active working f
         server_send_wr.opcode = IBV_WR_SEND; // This is a send request
         server_send_wr.send_flags = IBV_SEND_SIGNALED; // We want to get notification
         /* This is a fast data path operation. Posting an I/O request */
-        int ret = ibv_post_send(qp /* which QP */,
+        ret = ibv_post_send(qp /* which QP */,
                                 &server_send_wr /* Send request that we prepared before */,
                                 &bad_server_send_wr /* In case of error, this will contain failed requests */);
         if (ret) {
-            rdma_error("Posting of server metdata failed, errno: %d \n",
+            rdma_error("Posting of receiver metdata failed, errno: %d \n",
                        -errno);
             return -errno;
         }
 
 
-        struct ibv_wc wc;
         /* We check for completion notification */
         ret = process_work_completion_events(io_completion_channel, &wc, 1);
         if (ret != 1) {
-            rdma_error("Failed to send server metadata, ret = %d \n", ret);
+            rdma_error("Failed to send receiver metadata, ret = %d \n", ret);
             return ret;
         }
-        debug("Local buffer metadata has been sent to the client \n");
+        debug("Local buffer metadata has been sent to the sender \n");
+
+		// printf("ok trying to get wc from the client side write\n");
+		// ret = ibv_poll_cq(cq, 1, &wc);
+		// printf("ok got: %s, opcode %s\ntrying to get read\n", mapStatusToType(wc.status), mapOpcodeToType(wc.opcode));
+		// ret = ibv_poll_cq(cq, 1, &wc);
+
+		// printf("ok got: %s, opcode %s\n", mapStatusToType(wc.status),  mapOpcodeToType(wc.opcode));
 
 
         //FIXME - receive something here haha
+
+		// buf = 
+		// printf("waiting 1s...\n");
+		sleep(1);
+		// printf("\n\n%c\n\n", buf);
 
         return len;
 
@@ -644,6 +698,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) { // active working f
     // the default path
     return _recv(sockfd, buf, len, flags);
 }
+
 
 int close(int sockfd) {
     // FIXME -- you can remember the file descriptors that you have generated in

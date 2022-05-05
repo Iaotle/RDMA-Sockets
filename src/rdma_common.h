@@ -94,7 +94,8 @@ int process_rdma_cm_event(struct rdma_event_channel *echannel,
  */
 struct ibv_mr *rdma_buffer_alloc(struct ibv_pd *pd,
                                  uint32_t length,
-                                 enum ibv_access_flags permission);
+                                 enum ibv_access_flags permission,
+								 void *buf);
 
 /* Frees a previously allocated RDMA buffer. The buffer must be allocated by 
  * calling rdma_buffer_alloc();

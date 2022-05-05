@@ -43,15 +43,15 @@ void show_rdma_buffer_attr(struct rdma_buffer_attr *attr) {
 
 // Allocate RDMA buffer
 struct ibv_mr *rdma_buffer_alloc(struct ibv_pd *pd, uint32_t size,
-                                 enum ibv_access_flags permission) {
+                                 enum ibv_access_flags permission, void *buf) {
     struct ibv_mr *mr = NULL;
     if (!pd) {
         rdma_error("Protection domain is NULL \n");
         return NULL;
     }
-    void *buf = calloc(1, size);
+    // buf = calloc(1, size);
     if (!buf) {
-        rdma_error("failed to allocate buffer, -ENOMEM\n");
+        rdma_error("buffer isn't allocated, -ENOMEM\n");
         return NULL;
     }
     debug("Buffer allocated: %p , len: %u \n", buf, size);

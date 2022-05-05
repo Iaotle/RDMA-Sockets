@@ -122,6 +122,8 @@ int main(int argc, char** argv)
         so_far+=ret;
         printf("\t [receive loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
     }
+	printf("Waiting one second just to make sure the client can do read/write remotely...\n");
+	sleep(1);
     printf("OK: buffer received ok, pattern match : %s  \n", match_pattern(test_buffer, TEST_BUF_SIZE));
 
     // // then tx it back as it is

@@ -38,15 +38,15 @@ void write_pattern(char *buf, int size){
     // write a pattern
     unsigned char start = PATTERN_START;
     for(unsigned int i = 0; i < size; i++){
-        // buf[i] = (start + i) & 0xFFu;
-		buf[i] = 'a';
+        buf[i] = (start + i) & 0xFFu;
+		// buf[i] = 'a';
     }
 }
 
 const char * match_pattern(const unsigned char *buf, int size){
     unsigned char start = PATTERN_START;
     for(unsigned int i = 0; i < size; i++){
-        if( buf[i] != 'a' ) {//(0xFFu & buf[i]) != ((start + i) & 0xFFu)){
+        if( (0xFFu & buf[i]) != ((start + i) & 0xFFu)){
 
             printf("wrong pattern here ? returning %s , index %d buf 0x%x patt 0x%x \n", " <_DO_NOT match> ", i, buf[i], ((start + i) & 0xFFu));
             return " < _DO_NOT match > ";
