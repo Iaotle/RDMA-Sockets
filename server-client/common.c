@@ -13,15 +13,15 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
-*/
+ */
+
+#include "common.h"
 
 #include <stdbool.h>
-#include "common.h"
 
 #define PATTERN_START 0xAA;
 
-int get_addr(char *dst, struct sockaddr *addr)
-{
+int get_addr(char *dst, struct sockaddr *addr) {
     struct addrinfo *res;
     int ret = -1;
     ret = getaddrinfo(dst, NULL, NULL, &res);
@@ -34,23 +34,22 @@ int get_addr(char *dst, struct sockaddr *addr)
     return ret;
 }
 
-void write_pattern(char *buf, int size){
+void write_pattern(char *buf, int size) {
     // write a pattern
     unsigned char start = PATTERN_START;
-    for(unsigned int i = 0; i < size; i++){
+    for (unsigned int i = 0; i < size; i++) {
         buf[i] = (start + i) & 0xFFu;
-		// buf[i] = 'a';
+        // buf[i] = 'a';
     }
 }
 
-const char * match_pattern(const unsigned char *buf, int size){
+const char *match_pattern(const unsigned char *buf, int size) {
     unsigned char start = PATTERN_START;
-    for(unsigned int i = 0; i < size; i++){
-        if( (0xFFu & buf[i]) != ((start + i) & 0xFFu)){
-
+    for (unsigned int i = 0; i < size; i++) {
+        if ((0xFFu & buf[i]) != ((start + i) & 0xFFu)) {
             printf("wrong pattern here ? returning %s , index %d buf 0x%x patt 0x%x \n", " <_DO_NOT match> ", i, buf[i], ((start + i) & 0xFFu));
-            return " < _DO_NOT match > ";
+            return " \033[0;31m< _DO_NOT match >\033[0;37m ";
         };
     }
-    return " < OK, matched > ";
+    return " \n\033[0;32m< OK, matched >\033[0;37m ";
 }
