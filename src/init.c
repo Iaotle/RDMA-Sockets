@@ -13,22 +13,24 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
-*/
+ */
 
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
+
+#include "all_common.h"
+#include "anp_netdev.h"
+#include "anpwrapper.h"
+#include "route.h"
 #include "systems_headers.h"
 #include "tap_netdev.h"
-#include "anp_netdev.h"
-#include "route.h"
-#include "anpwrapper.h"
 #include "timer.h"
 
 extern char **environ;
 
-#define THREAD_RX      0
-#define THREAD_TIMER   1
-#define THREAD_MAX     2
+#define THREAD_RX 0
+#define THREAD_TIMER 1
+#define THREAD_MAX 2
 
 static pthread_t threads[THREAD_MAX];
 
@@ -51,22 +53,22 @@ static void init_threads() {
     create_thread(THREAD_TIMER, timers_start);
 }
 
-void __attribute__ ((constructor)) _init_anp_netstack() {
-    //https://stackoverflow.com/questions/3275015/ld-preload-affects-new-child-even-after-unsetenvld-preload
-    // uff, what a mess. So, if there are exec (which is in the system call, it fork bombs, hence it is
-    // quite important to unset thr LD_PRELOAD once we are here
+void __attribute__((constructor)) _init_anp_netstack() {
+    // https://stackoverflow.com/questions/3275015/ld-preload-affects-new-child-even-after-unsetenvld-preload
+    //  uff, what a mess. So, if there are exec (which is in the system call, it fork bombs, hence it is
+    //  quite important to unset thr LD_PRELOAD once we are here
 #ifdef ANP_DEBUG
     int i;
     printf("Unsetting LD_PRELOAD: %x\n", unsetenv("LD_PRELOAD"));
     printf("LD_PRELOAD: \"%s\"\n", getenv("LD_PRELOAD"));
-    printf("Environ: %lx\n",environ);
-    printf("unsetenv: %lx\n",unsetenv);
-    for (i=0;environ[i];i++ ) printf("env: %s\n",environ[i]);
+    printf("Environ: %lx\n", environ);
+    printf("unsetenv: %lx\n", unsetenv);
+    for (i = 0; environ[i]; i++) printf("env: %s\n", environ[i]);
     fflush(stdout);
 #else
     unsetenv("LD_PRELOAD");
 #endif
-    printf("Hello there, I am ANP networking stack!\n");
+    printf(ANSI_COLOR_BLUE "Hello there, I am ANP networking stack!\n" ANSI_COLOR_RESET);
     _function_override_init();
     // this is the external end, at 10.0.0.5
     // tdev_init();

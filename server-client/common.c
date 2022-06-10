@@ -43,6 +43,26 @@ void write_pattern(char *buf, int size) {
     }
 }
 
+void write_pattern2(char *buf, int size) {
+    // write a pattern
+    unsigned char start = PATTERN_START;
+    for (unsigned int i = 0; i < size; i++) {
+        // buf[i] = (start + i) & 0xFFu;
+        buf[i] = 'a';
+    }
+}
+
+const char *match_pattern2(const unsigned char *buf, int size) {
+    unsigned char start = PATTERN_START;
+    for (unsigned int i = 0; i < size; i++) {
+        if (buf[i] != 'a') {
+            printf("wrong pattern here ? returning %s , index %d buf 0x%x patt 0x%x \n", " <_DO_NOT match> ", i, buf[i], ((start + i) & 0xFFu));
+            return " \033[0;31m< _DO_NOT match >\033[0;37m ";
+        };
+    }
+    return " \n\033[0;32m< OK, matched >\033[0;37m ";
+}
+
 const char *match_pattern(const unsigned char *buf, int size) {
     unsigned char start = PATTERN_START;
     for (unsigned int i = 0; i < size; i++) {

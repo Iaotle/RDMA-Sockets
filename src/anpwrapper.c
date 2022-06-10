@@ -23,6 +23,7 @@
 
 #include <dlfcn.h>
 
+#include "all_common.h"
 #include "init.h"
 #include "linklist.h"
 #include "rdma_common.h"
@@ -46,7 +47,7 @@ static int (*_accept)(int socket, struct sockaddr *restrict address, socklen_t *
 static int (*_bind)(int socket, const struct sockaddr *server_sockaddr, socklen_t address_len) = NULL;
 
 static int (*_listen)(int __fd, int __n) = NULL;
-
+static int (*_setsockopt)(int __fd, int __level, int __optname, const void *__optval, socklen_t __optlen) = NULL;
 /// server stuff
 /* These are the RDMA resources needed to setup an RDMA connection */
 /* Event channel, where connection management (cm) related events are relayed */
@@ -77,6 +78,7 @@ static char *src = NULL,
             *dst = NULL;  // TODO: actually just get this from the passed arguments
 
 // helpers
+int recv_posted = 0;
 
 const char *mapStatusToType(enum ibv_wc_status status) {
     switch (status) {
@@ -149,23 +151,30 @@ const char *mapOpcodeToType(enum ibv_wc_opcode opcode) {
 }
 
 static int is_socket_supported(int domain, int type, int protocol) {
-    if (domain != AF_INET) {
-        return 0;
-    }
-    if (!(type & SOCK_STREAM)) {
-        return 0;
-    }
-    if (protocol != 0 && protocol != IPPROTO_TCP) {
-        return 0;
-    }
-    printf("supported socket domain %d type %d and protocol %d \n", domain, type, protocol);
     return 1;
+    // if (domain != AF_INET) {
+    //     return 0;
+    // }
+    // if (!(type & SOCK_STREAM)) {
+    //     return 0;
+    // }
+    // if (protocol != 0 && protocol != IPPROTO_TCP) {
+    //     return 0;
+    // }
+    // printf("supported socket domain %d type %d and protocol %d \n", domain, type, protocol);
+    // return 1;
 }
 
 /* This is our testing function */
 static int check_src_dst(char *src, char *dst, ssize_t len) { return memcmp((void *)src, (void *)dst, len); }
 
+int setsockopt(int __fd, int __level, int __optname, const void *__optval, socklen_t __optlen) {  // hack to get it to succeed
+    printf("\tSETSOCKOPT CALL\n");
+    return 0;
+}
+
 int socket(int domain, int type, int protocol) {
+    printf("\tSOCKET CALL\n");
     if (is_socket_supported(domain, type, protocol)) {
         int ret = -1;
         /*  Open a channel used to report asynchronous communication event */
@@ -179,6 +188,7 @@ int socket(int domain, int type, int protocol) {
          * to define an RDMA connection.
          */
         ret = rdma_create_id(cm_event_channel, &cm_host_id, NULL, RDMA_PS_TCP);
+        printf("\tRDMA ID created\n");
         if (ret) {
             rdma_error("Creating cm id failed with errno: %d ", -errno);
             return -errno;
@@ -192,6 +202,7 @@ int socket(int domain, int type, int protocol) {
 }
 
 int listen(int __fd, int __n) {
+    printf("\tLISTEN CALL\n");
     /* Now we start to listen on the passed IP and port. However unlike
      * normal TCP listen, this is a non-blocking call. When a new client is
      * connected, a new connection management (CM) event is generated on the
@@ -240,6 +251,7 @@ int accept(int socket, struct sockaddr *restrict address,
                                                // ignoring them
 
     // setup client resources
+    printf("\tACCEPT CALL\n");
     int ret = -1;
     if (!cm_remote_id) {
         rdma_error("Client id is still NULL \n");
@@ -324,40 +336,41 @@ int accept(int socket, struct sockaddr *restrict address,
     // accept
     struct rdma_conn_param conn_param;
     struct sockaddr_in remote_sockaddr;
-    static struct ibv_sge client_recv_sge;
-    static struct ibv_recv_wr client_recv_wr, *bad_client_recv_wr = NULL;
-    struct rdma_cm_event *cm_event = NULL;
-    static struct ibv_mr *client_metadata_mr = NULL;
+    // static struct ibv_sge client_recv_sge;
+    // static struct ibv_recv_wr remote_recv_wr, *bad_remote_recv_wr = NULL;
+    // struct rdma_cm_event *cm_event = NULL;
+    // static struct ibv_mr *client_metadata_mr = NULL;
 
-    ret = -1;
-    if (!cm_remote_id || !qp) {
-        rdma_error("Client resources are not properly setup\n");
-        return -EINVAL;
-    }
-    /* we prepare the receive buffer in which we will receive the client
-     * metadata*/
-    client_metadata_mr = rdma_buffer_register(pd /* which protection domain */, &remote_metadata_attr /* what memory */,
-                                              sizeof(remote_metadata_attr) /* what length */, (IBV_ACCESS_LOCAL_WRITE) /* access permissions */);
-    if (!client_metadata_mr) {
-        rdma_error("Failed to register client attr buffer\n");
-        // we assume ENOMEM
-        return -ENOMEM;
-    }
-    /* We pre-post this receive buffer for client metadata on the QP. SGE credentials is where we
-     * receive the metadata from the client */
-    client_recv_sge.addr = (uint64_t)client_metadata_mr->addr;  // same as &client_buffer_attr
-    client_recv_sge.length = client_metadata_mr->length;
-    client_recv_sge.lkey = client_metadata_mr->lkey;
-    /* Now we link this SGE to the work request (WR) */
-    bzero(&client_recv_wr, sizeof(client_recv_wr));
-    client_recv_wr.sg_list = &client_recv_sge;
-    client_recv_wr.num_sge = 1;  // only one SGE
-    ret = ibv_post_recv(qp /* which QP */, &client_recv_wr /* receive work request*/, &bad_client_recv_wr /* error WRs */);
-    if (ret) {
-        rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
-        return ret;
-    }
-    debug("Receive buffer pre-posting is successful \n");
+    // ret = -1;
+    // if (!cm_remote_id || !qp) {
+    //     rdma_error("Client resources are not properly setup\n");
+    //     return -EINVAL;
+    // }
+    // /* we prepare the receive buffer in which we will receive the client
+    //  * metadata*/
+    // client_metadata_mr = rdma_buffer_register(pd /* which protection domain */, &remote_metadata_attr /* what memory */,
+    //                                           sizeof(remote_metadata_attr) /* what length */, (IBV_ACCESS_LOCAL_WRITE) /* access permissions */);
+    // if (!client_metadata_mr) {
+    //     rdma_error("Failed to register client attr buffer\n");
+    //     // we assume ENOMEM
+    //     return -ENOMEM;
+    // }
+    // /* We pre-post this receive buffer for client metadata on the QP. SGE credentials is where we
+    //  * receive the metadata from the client */
+    // client_recv_sge.addr = (uint64_t)client_metadata_mr->addr;  // same as &client_buffer_attr
+    // client_recv_sge.length = client_metadata_mr->length;
+    // client_recv_sge.lkey = client_metadata_mr->lkey;
+    // /* Now we link this SGE to the work request (WR) */
+    // bzero(&remote_recv_wr, sizeof(remote_recv_wr));
+    // remote_recv_wr.sg_list = &client_recv_sge;
+    // remote_recv_wr.num_sge = 1;  // only one SGE
+    // ret = ibv_post_recv(qp /* which QP */, &remote_recv_wr /* receive work request*/, &bad_remote_recv_wr /* error WRs */);
+    // if (ret) {
+    //     rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
+    //     return ret;
+    // }
+    // debug("Receive buffer pre-posting is successful \n");
+    // recv_posted = 1;
     /* Now we accept the connection. Recall we have not accepted the connection
      * yet because we have to do lots of resource pre-allocation */
     memset(&conn_param, 0, sizeof(conn_param));
@@ -376,6 +389,8 @@ int accept(int socket, struct sockaddr *restrict address,
      */
     debug("Going to wait for : RDMA_CM_EVENT_ESTABLISHED event \n");
 
+    struct rdma_cm_event *cm_event = NULL;
+
     ret = process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ESTABLISHED, &cm_event);
     if (ret) {
         rdma_error("Failed to get the cm event, errnp: %d \n", -errno);
@@ -391,6 +406,9 @@ int accept(int socket, struct sockaddr *restrict address,
 
 int bind(int socket, const struct sockaddr *server_sockaddr,
          socklen_t address_len) {  // address_len is useless here because of RDMA
+
+    printf("\tBIND CALL\n");
+
     int ret = rdma_bind_addr(cm_host_id, (struct sockaddr *)server_sockaddr);
     if (ret) {
         rdma_error("Failed to bind server address, errno: %d \n", -errno);
@@ -402,10 +420,33 @@ int bind(int socket, const struct sockaddr *server_sockaddr,
 ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
     // FIXME -- you can remember the file descriptors that you have generated in
     // the socket call and match them here
+    printf("\tSEND CALL\n");
+
     bool is_anp_sockfd = true;
     if (is_anp_sockfd) {
         // rdma_send:
-        printf("rdma_send\n");
+        printf(ANSI_COLOR_YELLOW "rdma_send\n" ANSI_COLOR_RESET);
+
+        // pre-post receive buffer
+        int ret = -1;
+        server_metadata_mr = rdma_buffer_register(pd, &remote_metadata_attr, sizeof(remote_metadata_attr), (IBV_ACCESS_LOCAL_WRITE));
+        if (!server_metadata_mr) {
+            rdma_error("Failed to setup the server metadata mr , -ENOMEM\n");
+            return -ENOMEM;
+        }
+        server_recv_sge.addr = (uint64_t)server_metadata_mr->addr;
+        server_recv_sge.length = (uint32_t)server_metadata_mr->length;
+        server_recv_sge.lkey = (uint32_t)server_metadata_mr->lkey;
+        /* now we link it to the request */
+        bzero(&server_recv_wr, sizeof(server_recv_wr));
+        server_recv_wr.sg_list = &server_recv_sge;
+        server_recv_wr.num_sge = 1;
+        ret = ibv_post_recv(qp /* which QP */, &server_recv_wr /* receive work request*/, &bad_server_recv_wr /* error WRs */);
+        if (ret) {
+            rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
+            return ret;
+        }
+        debug("Receive buffer pre-posting is successful \n");
 
         // allocate destination buffer -- ?
         dst = calloc(len, 1);
@@ -417,7 +458,6 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
 
         // send(): exchange metadata with remote side
         struct ibv_wc wc[2];
-        int ret = -1;
         static struct ibv_mr *local_mr;
 
         local_mr = rdma_buffer_register(pd, buf, len, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE));
@@ -558,11 +598,51 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
 }
 
 ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
+    printf("\tRECV CALL\n");
+
     // FIXME -- you can remember the file descriptors that you have generated in
     // the socket call and match them here
     bool is_anp_sockfd = true;
     if (is_anp_sockfd) {
-        printf("\n\nrdma_recv\n\n");
+        printf(ANSI_COLOR_YELLOW "rdma_recv\n" ANSI_COLOR_RESET);
+        int ret = -1;
+
+        // if (!recv_posted) {
+        static struct ibv_sge client_recv_sge;
+        static struct ibv_recv_wr client_recv_wr, *bad_client_recv_wr = NULL;
+        struct rdma_cm_event *cm_event = NULL;
+        static struct ibv_mr *client_metadata_mr = NULL;
+
+        // if (!cm_remote_id || !qp) {
+        //     rdma_error("Client resources are not properly setup\n");
+        //     return -EINVAL;
+        // }
+        /* we prepare the receive buffer in which we will receive the client
+         * metadata*/
+        client_metadata_mr = rdma_buffer_register(pd /* which protection domain */, &remote_metadata_attr /* what memory */,
+                                                  sizeof(remote_metadata_attr) /* what length */, (IBV_ACCESS_LOCAL_WRITE) /* access permissions */);
+        if (!client_metadata_mr) {
+            rdma_error("Failed to register client attr buffer\n");
+            // we assume ENOMEM
+            return -ENOMEM;
+        }
+        /* We post this receive buffer for client metadata on the QP. SGE credentials is where we
+         * receive the metadata from the client */
+        client_recv_sge.addr = (uint64_t)client_metadata_mr->addr;  // same as &client_buffer_attr
+        client_recv_sge.length = client_metadata_mr->length;
+        client_recv_sge.lkey = client_metadata_mr->lkey;
+        /* Now we link this SGE to the work request (WR) */
+        bzero(&client_recv_wr, sizeof(client_recv_wr));
+        client_recv_wr.sg_list = &client_recv_sge;
+        client_recv_wr.num_sge = 1;  // only one SGE
+        ret = ibv_post_recv(qp /* which QP */, &client_recv_wr /* receive work request*/, &bad_client_recv_wr /* error WRs */);
+        if (ret) {
+            rdma_error("Failed to post the receive buffer, errno: %d \n", ret);
+            return ret;
+        }
+        debug("Receive buffer posting is successful \n");
+        recv_posted = 1;
+        // }
 
         // /* Just FYI: How to extract connection information */
         // memcpy(&remote_sockaddr /* where to save */,
@@ -573,7 +653,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
 
         // send host metadata to remote
         struct ibv_wc wc;
-        int ret = -1;
+        ret = -1;
         /* Now, we first wait for the remote to start the communication by
          * sending the host its metadata info. The host does not use it
          * in our example. We will receive a work completion notification for
@@ -650,6 +730,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
             return ret;
         }
         debug("Local buffer metadata has been sent to the sender \n");
+        recv_posted = 0;
 
         // printf("ok trying to get wc from the remote side write\n");
         // ret = ibv_poll_cq(cq, 1, &wc);
@@ -663,7 +744,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
         // FIXME - receive something here haha
 
         // buf =
-        // printf("waiting 1s...\n");
+        printf("waiting 1s...\n");
         sleep(1);
         // printf("\n\n%c\n\n", buf);
 
@@ -676,6 +757,8 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
 }
 
 int close(int sockfd) {
+    printf("\tCLOSE CALL\n");
+
     // FIXME -- you can remember the file descriptors that you have generated in
     // the socket call and match them here
     bool is_anp_sockfd = false;
@@ -715,6 +798,8 @@ int close(int sockfd) {
 }
 
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+    printf("\tCONNECT CALL\n");
+
     // FIXME -- you can remember the file descriptors that you have generated in
     // the socket call and match them here
     bool is_anp_sockfd = true;  // omfg
@@ -851,26 +936,26 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
         }
         printf("The client is connected successfully \n");
 
-        // pre-post receive buffer
-        ret = -1;
-        server_metadata_mr = rdma_buffer_register(pd, &remote_metadata_attr, sizeof(remote_metadata_attr), (IBV_ACCESS_LOCAL_WRITE));
-        if (!server_metadata_mr) {
-            rdma_error("Failed to setup the server metadata mr , -ENOMEM\n");
-            return -ENOMEM;
-        }
-        server_recv_sge.addr = (uint64_t)server_metadata_mr->addr;
-        server_recv_sge.length = (uint32_t)server_metadata_mr->length;
-        server_recv_sge.lkey = (uint32_t)server_metadata_mr->lkey;
-        /* now we link it to the request */
-        bzero(&server_recv_wr, sizeof(server_recv_wr));
-        server_recv_wr.sg_list = &server_recv_sge;
-        server_recv_wr.num_sge = 1;
-        ret = ibv_post_recv(qp /* which QP */, &server_recv_wr /* receive work request*/, &bad_server_recv_wr /* error WRs */);
-        if (ret) {
-            rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
-            return ret;
-        }
-        debug("Receive buffer pre-posting is successful \n");
+        // // pre-post receive buffer
+        // ret = -1;
+        // server_metadata_mr = rdma_buffer_register(pd, &remote_metadata_attr, sizeof(remote_metadata_attr), (IBV_ACCESS_LOCAL_WRITE));
+        // if (!server_metadata_mr) {
+        //     rdma_error("Failed to setup the server metadata mr , -ENOMEM\n");
+        //     return -ENOMEM;
+        // }
+        // server_recv_sge.addr = (uint64_t)server_metadata_mr->addr;
+        // server_recv_sge.length = (uint32_t)server_metadata_mr->length;
+        // server_recv_sge.lkey = (uint32_t)server_metadata_mr->lkey;
+        // /* now we link it to the request */
+        // bzero(&server_recv_wr, sizeof(server_recv_wr));
+        // server_recv_wr.sg_list = &server_recv_sge;
+        // server_recv_wr.num_sge = 1;
+        // ret = ibv_post_recv(qp /* which QP */, &server_recv_wr /* receive work request*/, &bad_server_recv_wr /* error WRs */);
+        // if (ret) {
+        //     rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
+        //     return ret;
+        // }
+        // debug("Receive buffer pre-posting is successful \n");
         return ret;
 
         return -ENOSYS;
@@ -889,4 +974,5 @@ void _function_override_init() {
     _send = dlsym(RTLD_NEXT, "send");
     _recv = dlsym(RTLD_NEXT, "recv");
     _close = dlsym(RTLD_NEXT, "close");
+    _setsockopt = dlsym(RTLD_NEXT, "setsockopt");
 }

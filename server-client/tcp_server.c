@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "../src/all_common.h"
 #include "../src/rdma_common.h"
 #include "common.h"
 
@@ -123,6 +124,7 @@ int main(int argc, char** argv) {
     // sleep(1);
     printf("OK: buffer received ok, pattern match : %s  \n", match_pattern(test_buffer, TEST_BUF_SIZE));
 
+    write_pattern2(test_buffer, TEST_BUF_SIZE);
     // then tx it back as it is
     so_far = 0;
     while (so_far < TEST_BUF_SIZE) {
@@ -135,10 +137,12 @@ int main(int argc, char** argv) {
         printf("\t [send loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
     }
     printf("OK: buffer tx backed \n");
+    printf("checking...\n");
+    match_pattern2(test_buffer, TEST_BUF_SIZE);
 
     // in order to initiate the connection close from the client side, we wait here indefinitely to receive more
-    ret = recv(client_fd, test_buffer, TEST_BUF_SIZE, 0);
-    printf("ret from the recv is %d errno %d \n", ret, errno);
+    // ret = recv(client_fd, test_buffer, TEST_BUF_SIZE, 0);
+    // printf("ret from the recv is %d errno %d \n", ret, errno);
 
     // close the two fds
     ret = close(client_fd);
