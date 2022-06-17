@@ -1,6 +1,13 @@
 {
 	"files.associations": {
 		"*.tsx": "typescriptreact",
-		"rdma_common.h": "c"
+		"rdma_common.h": "c",
+		"stdlib.h": "c",
+		"common.h": "c",
+		"stdio.h": "c",
+		"bitset": "c",
+		"chrono": "c",
+		"algorithm": "c",
+		"all_common.h": "c"
 	}
 }

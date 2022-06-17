@@ -13,10 +13,10 @@ void show_rdma_cmid(struct rdma_cm_id *id) {
         rdma_error("Passed ptr is NULL\n");
         return;
     }
-    printf("RDMA cm id at %p \n", id);
-    if (id->verbs && id->verbs->device) printf("dev_ctx: %p (device name: %s) \n", id->verbs, id->verbs->device->name);
-    if (id->channel) printf("cm event channel %p\n", id->channel);
-    printf("QP: %p, port_space %x, port_num %u \n", id->qp, id->ps, id->port_num);
+    debug("RDMA cm id at %p \n", id);
+    if (id->verbs && id->verbs->device) debug("dev_ctx: %p (device name: %s) \n", id->verbs, id->verbs->device->name);
+    if (id->channel) debug("cm event channel %p\n", id->channel);
+    debug("QP: %p, port_space %x, port_num %u \n", id->qp, id->ps, id->port_num);
 }
 
 // Debug info about buffer
@@ -116,6 +116,31 @@ int process_rdma_cm_event(struct rdma_event_channel *echannel, enum rdma_cm_even
     return ret;
 }
 
+const char *mapOpcodeToType(enum ibv_wc_opcode opcode) {
+    switch (opcode) {
+        case IBV_WC_SEND:
+            return "IBV_WC_SEND";
+        case IBV_WC_RDMA_WRITE:
+            return "IBV_WC_RDMA_WRITE";
+        case IBV_WC_RDMA_READ:
+            return ANSI_COLOR_BLUE"IBV_WC_RDMA_READ"ANSI_COLOR_RESET;
+        case IBV_WC_COMP_SWAP:
+            return "IBV_WC_COMP_SWAP";
+        case IBV_WC_FETCH_ADD:
+            return "IBV_WC_FETCH_ADD";
+        case IBV_WC_BIND_MW:
+            return "IBV_WC_BIND_MW";
+        case IBV_WC_LOCAL_INV:
+            return "IBV_WC_LOCAL_INV";
+        case IBV_WC_TSO:
+            return "IBV_WC_TSO";
+        case IBV_WC_RECV:
+            return "IBV_WC_RECV";
+        case IBV_WC_RECV_RDMA_WITH_IMM:
+            return ANSI_COLOR_BLUE"IBV_WC_RECV_RDMA_WITH_IMM"ANSI_COLOR_RESET;
+    }
+}
+
 // Process WC (work completion) event
 int process_work_completion_events(struct ibv_comp_channel *comp_channel, struct ibv_wc *wc, int max_wc) {
     struct ibv_cq *cq_ptr = NULL;
@@ -154,6 +179,7 @@ int process_work_completion_events(struct ibv_comp_channel *comp_channel, struct
     debug("%d WC are completed \n", total_wc);
     /* Now we check validity and status of I/O work completions */
     for (i = 0; i < total_wc; i++) {
+		debug("%s\n", mapOpcodeToType(wc[i].opcode));
         if (wc[i].status != IBV_WC_SUCCESS) {
             rdma_error("Work completion (WC) has error status: %s at index %d", ibv_wc_status_str(wc[i].status), i);
             /* return negative value */
@@ -173,7 +199,7 @@ int get_addr(char *dst, struct sockaddr *addr) {
     int ret = -1;
     ret = getaddrinfo(dst, NULL, NULL, &res);
     if (ret) {
-        printf("Error: getaddrinfo failed - invalid hostname or IP address\n");
+        debug("Error: getaddrinfo failed - invalid hostname or IP address\n");
         return ret;
     }
     memcpy(addr, res->ai_addr, sizeof(struct sockaddr_in));

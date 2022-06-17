@@ -22,7 +22,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-
+#include "all_common.h"
 /* Error Macro*/
 #define rdma_error(msg, args...)                                               \
     do {                                                                       \

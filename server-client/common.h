@@ -39,10 +39,10 @@
 #define MEGABYTE (1 << 20) // 1MB
 #define GIGABYTE (1 << 30) // 1GB
 
-#define NUM_ITERATIONS 1
-#define NUM_TESTS 4
+#define NUM_ITERATIONS 1000
+#define NUM_TESTS 10
 
-#define TEST_BUFFER_LENGTH (1 << 30)
+#define TEST_BUFFER_LENGTH (1 << 20)
 
 
 
@@ -53,6 +53,9 @@ void write_pattern(char *buf, int size);
 void write_pattern2(char *buf, int size);
 void send_test(int fd);
 void recv_test(int fd);
+
+void send_test_sanity(int fd);
+void recv_test_sanity(int fd);
 
 struct timespec diff(struct timespec start, struct timespec end);
 
