@@ -24,22 +24,18 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "common.h"
 #include "../src/all_common.h"
-
+#include "../src/timer.h"
+#include "common.h"
 
 // sudo tcpdump -i wlp2s0 tcp port 43211
 int main(int argc, char** argv) {
-    int server_fd = -1, ret = -1, so_far = 0;
+    int server_fd = -1, ret = -1;
     char* active_ip = "127.0.0.1";
     int active_port = PORT;
 
     struct sockaddr_in server_addr;
     char debug_buffer[INET_ADDRSTRLEN];
-    char tx_buffer[TEST_BUF_SIZE];
-    char rx_buffer[TEST_BUF_SIZE];
-    bzero(tx_buffer, TEST_BUF_SIZE);
-    bzero(rx_buffer, TEST_BUF_SIZE);
 
     printf("usage: ./anp_client ip [default: 127.0.0.1] port [default: %d]\n", PORT);
 
@@ -81,44 +77,35 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &server_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("OK: connected to the server at %s \n", debug_buffer);
 
-    // char* buf;
-    // buf = aligned_alloc(1024, 4096);
-    // buf = "strinog";
-    // printf("sending buffer: %s\n", buf);
-    // ret = send(0, (void*) buf, 16, 0);
 
-    // TODO: send/recv
-    // write a pattern
-    write_pattern(tx_buffer, TEST_BUF_SIZE);
-    // tx_buffer[0] = 'a';
+	// printf(ANSI_COLOR_RED"RUNNING SaNITY CHECK\n"ANSI_COLOR_RESET);
+    // char rx_buffer[TEST_BUFFER_LENGTH];
+	// write_pattern(rx_buffer, TEST_BUFFER_LENGTH);
+	// int so_far = 0;
+    // while (so_far < TEST_BUFFER_LENGTH) {
+    //     int ret = recv(server_fd, rx_buffer + so_far, TEST_BUFFER_LENGTH - so_far, 0);
+	// 	// printf("recv\n");
+    //     if (0 > ret) {
+    //         printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
+    //         return -ret;
+    //     }
+    //     so_far += ret;
+    // }
+	// match_pattern2(rx_buffer, TEST_BUFFER_LENGTH);
 
-    // send test buffer
-    printf("sending buffer %s\n", tx_buffer);
-    while (so_far < TEST_BUF_SIZE) {
-        ret = send(server_fd, tx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
-        if (0 > ret) {
-            printf("Error: send failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far += ret;
-        printf("\t [send loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
-    }
+	// char tx_buffer[TEST_BUFFER_LENGTH];
+	// write_pattern2(tx_buffer, TEST_BUFFER_LENGTH);
+	// send(server_fd, tx_buffer, TEST_BUFFER_LENGTH, 0);
 
-    printf("OK: buffer sent successfully \n");
-    printf("OK: waiting to receive data \n");
-    // sleep(1);
-    // receive test buffer
-    so_far = 0;
-    while (so_far < TEST_BUF_SIZE) {
-        ret = recv(server_fd, rx_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
-        if (0 > ret) {
-            printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far += ret;
-        printf("\t [receive loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
-    }
-    printf("Results of pattern matching: %s \n", match_pattern2(rx_buffer, TEST_BUF_SIZE));
+	// printf(ANSI_COLOR_GREEN"SaNITY CHECK OK\n"ANSI_COLOR_RESET);
+
+
+    printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
+    recv_test(server_fd);
+    printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
+    send_test(server_fd);
+    printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
+    recv_test(server_fd);
     // close the socket
     // now we sleep a bit to drain the queues and then trigger the close logic
     printf("A 5 sec wait before calling close \n");

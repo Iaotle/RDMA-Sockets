@@ -29,17 +29,31 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <time.h>
+#include "../src/all_common.h"
 
 #define PORT 43211
 
 #define SMALL_BUFF (1 << 12)  // 4KiB
 #define LARGE_BUFF (1 << 17)  // 32KiB
-#define TEST_BUF_SIZE SMALL_BUFF
+#define MEGABYTE (1 << 20) // 1MB
+#define GIGABYTE (1 << 30) // 1GB
+
+#define NUM_ITERATIONS 1
+#define NUM_TESTS 4
+
+#define TEST_BUFFER_LENGTH (1 << 30)
+
+
 
 int get_addr(char *dst, struct sockaddr *addr);
-const char *match_pattern(const unsigned char *buf, int size);
-const char *match_pattern2(const unsigned char *buf, int size);
+const int *match_pattern(const unsigned char *buf, int size);
+const int *match_pattern2(const unsigned char *buf, int size);
 void write_pattern(char *buf, int size);
 void write_pattern2(char *buf, int size);
+void send_test(int fd);
+void recv_test(int fd);
+
+struct timespec diff(struct timespec start, struct timespec end);
 
 #endif  // SIMPLE_SERVER_CLIENT_COMMON_H

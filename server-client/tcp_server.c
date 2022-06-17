@@ -27,16 +27,14 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "../src/all_common.h"
-#include "../src/rdma_common.h"
+#include "../src/timer.h"
 #include "common.h"
 
 int main(int argc, char** argv) {
-    int listen_fd, client_fd, len = 0, ret = -1, so_far = 0;
+    int listen_fd, client_fd, len = 0, ret = -1;
     int optval = 1;
     struct sockaddr_in server_addr, client_addr;
     char debug_buffer[INET_ADDRSTRLEN];
-    char test_buffer[TEST_BUF_SIZE];
 
     // create the listening socket
     listen_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -104,42 +102,34 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &client_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("new incoming connection from %s \n", debug_buffer);
 
-    // char buf[4096];
-    // ret = recv(0, &buf, 4096, 0);
+	// printf(ANSI_COLOR_RED"RUNNING SaNITY CHECK\n"ANSI_COLOR_RESET);
+    // char tx_buffer[TEST_BUFFER_LENGTH];
+	// write_pattern2(tx_buffer, TEST_BUFFER_LENGTH);
+	// send(client_fd, tx_buffer, TEST_BUFFER_LENGTH, 0);
 
-    // printf("buffer got: %s\n", buf);
-    // first recv the buffer, then tx it back as it is
-    // TODO: send/recv
-    so_far = 0;
-    while (so_far < TEST_BUF_SIZE) {
-        ret = recv(client_fd, test_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
-        if (0 > ret) {
-            printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far += ret;
-        printf("\t [receive loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
-    }
-    // printf("Waiting one second just to make sure the client can do read/write remotely...\n");
-    // sleep(1);
-    printf("OK: buffer received ok, pattern match : %s  \n", match_pattern(test_buffer, TEST_BUF_SIZE));
+    // char rx_buffer[TEST_BUFFER_LENGTH];
+	// write_pattern(rx_buffer, TEST_BUFFER_LENGTH);
+	// int so_far = 0;
+    // while (so_far < TEST_BUFFER_LENGTH) {
+    //     int ret = recv(client_fd, rx_buffer + so_far, TEST_BUFFER_LENGTH - so_far, 0);
+	// 	// printf("recv\n");
+    //     if (0 > ret) {
+    //         printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
+    //         return -ret;
+    //     }
+    //     so_far += ret;
+    // }
+	// match_pattern2(rx_buffer, TEST_BUFFER_LENGTH);
 
-    write_pattern2(test_buffer, TEST_BUF_SIZE);
-    // then tx it back as it is
-    so_far = 0;
-    while (so_far < TEST_BUF_SIZE) {
-        ret = send(client_fd, test_buffer + so_far, TEST_BUF_SIZE - so_far, 0);
-        if (0 > ret) {
-            printf("Error: send failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far += ret;
-        printf("\t [send loop] %d bytes, looping again, so_far %d target %d \n", ret, so_far, TEST_BUF_SIZE);
-    }
-    printf("OK: buffer tx backed \n");
-    printf("checking...\n");
-    match_pattern2(test_buffer, TEST_BUF_SIZE);
+	// printf(ANSI_COLOR_GREEN"SaNITY CHECK OK\n"ANSI_COLOR_RESET);
 
+
+    printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
+    send_test(client_fd);
+    printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
+    recv_test(client_fd);
+    printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
+    send_test(client_fd);
     // in order to initiate the connection close from the client side, we wait here indefinitely to receive more
     // ret = recv(client_fd, test_buffer, TEST_BUF_SIZE, 0);
     // printf("ret from the recv is %d errno %d \n", ret, errno);
