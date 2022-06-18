@@ -56,7 +56,7 @@ const int *match_pattern2(const unsigned char *buf, int size) {
     unsigned char start = PATTERN_START;
     for (unsigned int i = 0; i < size; i++) {
         if (buf[i] != 'a') {
-			printf(ANSI_COLOR_RED"BUFFERS DO NOT MATCH AT INDEX %i, 0x%x == 0x%x\n"ANSI_COLOR_RESET, i, buf[i], 'a');
+			printf(ANSI_COLOR_RED"<NO MATCH> BUFFERS DO NOT MATCH AT INDEX %i, 0x%x == 0x%x\n"ANSI_COLOR_RESET, i, buf[i], 'a');
             // printf("wrong pattern here ? returning %s , index %d buf 0x%x patt 0x%x \n", " <_DO_NOT match> ", i, buf[i], 'a');
             // return " \033[0;31m< _DO_NOT match >\033[0;37m ";
 			return -1;
@@ -98,7 +98,8 @@ int run_test(int fd,
 			char send_buffer[TEST_BUFFER_LENGTH],
 			char receive_buffer[TEST_BUFFER_LENGTH]) {
 
-	// double //TODO: make averages
+	double avg_latency = 0;
+	double avg_bw = 0;
     
 	struct timespec start, end;
     
@@ -116,8 +117,12 @@ int run_test(int fd,
         double Bps = (double)TEST_BUFFER_LENGTH * (double)NUM_ITERATIONS / time_num;  // BYTES per second
         double Gbps = Bps / GIGABYTE * 8;
         printf("Run took: %f seconds, Gbps = " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET, time_num, Gbps);
-		printf("Latency per call: "ANSI_COLOR_CYAN"%f\n"ANSI_COLOR_RESET, (double)NUM_ITERATIONS/time_num);
+		avg_bw += Gbps;
+		printf("Latency per call: "ANSI_COLOR_CYAN"%f\n"ANSI_COLOR_RESET, time_num/(double)NUM_ITERATIONS);
+		avg_latency += time_num;
     }
+	printf("Averages:\nGbps = "ANSI_COLOR_CYAN"%f"ANSI_COLOR_RESET", Latency "ANSI_COLOR_CYAN"%f\n"ANSI_COLOR_RESET, avg_bw/(double)(NUM_TESTS), avg_latency/NUM_TESTS*NUM_ITERATIONS);
+
 }
 
 void send_func(int fd, char send_buffer[TEST_BUFFER_LENGTH], char receive_buffer[TEST_BUFFER_LENGTH]) {

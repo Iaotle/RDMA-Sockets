@@ -39,10 +39,10 @@
 #define MEGABYTE (1 << 20) // 1MB
 #define GIGABYTE (1 << 30) // 1GB
 
-#define NUM_ITERATIONS 1000
-#define NUM_TESTS 10
+#define NUM_ITERATIONS 1
+#define NUM_TESTS 1
 
-#define TEST_BUFFER_LENGTH (1 << 20)
+#define TEST_BUFFER_LENGTH (1 << 30)
 
 
 

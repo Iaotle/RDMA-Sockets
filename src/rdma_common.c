@@ -51,7 +51,7 @@ struct ibv_mr *rdma_buffer_alloc(struct ibv_pd *pd, uint32_t size, enum ibv_acce
 }
 
 // Register RDMA buffer
-struct ibv_mr *rdma_buffer_register(struct ibv_pd *pd, void *addr, uint32_t length, enum ibv_access_flags permission) {
+inline struct ibv_mr *rdma_buffer_register(struct ibv_pd *pd, void *addr, uint32_t length, enum ibv_access_flags permission) {
     struct ibv_mr *mr = NULL;
     if (!pd) {
         rdma_error("Protection domain is NULL, ignoring \n");

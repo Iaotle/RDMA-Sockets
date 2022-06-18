@@ -56,79 +56,42 @@ static ssize_t (*_read)(int __fd, void *__buf, size_t __nbytes) = NULL;
 
 /// server stuff
 /* These are the RDMA resources needed to setup an RDMA connection */
-/* Event channel, where connection management (cm) related events are relayed */
-static struct rdma_cm_id *cm_host_id = NULL, *cm_remote_id = NULL;
-static struct rdma_event_channel *cm_event_channel = NULL;
-static struct ibv_pd *pd = NULL;                               // needs to be in fd struct
-static struct ibv_comp_channel *io_completion_channel = NULL;  // needs to be in fd struct
-static struct ibv_cq *cq = NULL;                               // needs to be in fd struct
-static struct ibv_qp_init_attr qp_init_attr;
-static struct ibv_qp *qp = NULL;  // needs to be in fd struct
-/* RDMA memory resources */
-static struct ibv_mr *server_buffer_mr = NULL, *server_metadata_mr = NULL;
+static struct rdma_cm_id *cm_id = NULL;
+static struct rdma_event_channel *event_channel = NULL;
+static struct ibv_pd *pd = NULL;
+static struct ibv_comp_channel *completion_channel = NULL;
+static struct ibv_cq *cq = NULL;
+static struct ibv_qp *qp = NULL;
 static struct rdma_buffer_attr remote_metadata_attr;
-static struct ibv_send_wr server_send_wr, *bad_server_send_wr = NULL;
-static struct ibv_sge server_send_sge;
 
-// static struct rdma_cm_id *fd_id = NULL;
-/* contains:
-        - Event channel
-        - qp
-        - pd
-        - completion channel
-        - cq (send + recv)
+/* These are memory buffers */
+static struct ibv_mr *host_mr = NULL;
 
-*/
-/// client stuff
-/* These are basic RDMA resources */
-/* These are RDMA connection related resources */
-static struct ibv_cq *client_cq = NULL;
-/* These are memory buffers related resources */
-static struct ibv_mr *client_src_mr = NULL, *client_dst_mr = NULL;
-static struct ibv_send_wr client_send_wr, *bad_client_send_wr = NULL;
-static struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr = NULL;
-static struct ibv_sge server_recv_sge;
-static struct ibv_mr *dst_mr = NULL;
-static struct ibv_mr *local_mr = NULL;
-static struct ibv_mr *receiver_buffer_mr = NULL;
+/// hack stuff...
+char *destination_noalloc = NULL;
 
 typedef struct fd_resources {
     /// server stuff
     /* These are the RDMA resources needed to setup an RDMA connection */
     /* Event channel, where connection management (cm) related events are relayed */
     int fd;
-    struct rdma_cm_id *cm_host_id, *cm_remote_id;
+    struct rdma_cm_id *cm_host_id;
     struct rdma_event_channel *cm_event_channel;
-    struct ibv_pd *pd;                               // needs to be in fd struct
-    struct ibv_comp_channel *io_completion_channel;  // needs to be in fd struct
-    struct ibv_cq *cq;                               // needs to be in fd struct
-    struct ibv_qp_init_attr qp_init_attr;
-    struct ibv_qp *qp;  // needs to be in fd struct
-                        /* RDMA memory resources */
-    struct ibv_mr *server_buffer_mr, *server_metadata_mr;
-    struct rdma_buffer_attr remote_metadata_attr;
-    struct ibv_send_wr server_send_wr, *bad_server_send_wr;
-    struct ibv_sge server_send_sge;
+    struct ibv_pd *pd;
+    struct ibv_comp_channel *io_completion_channel;
+    struct ibv_cq *cq;
+    struct ibv_qp *qp;
 
-    /// client stuff
-    /* These are basic RDMA resources */
-    /* These are RDMA connection related resources */
-    struct ibv_cq *client_cq;
-    /* These are memory buffers related resources */
-    struct ibv_mr *client_src_mr, *client_dst_mr;
-    struct ibv_send_wr client_send_wr, *bad_client_send_wr;
-    struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr;
-    struct ibv_sge server_recv_sge;
-    struct ibv_mr *dst_mr;
-    struct ibv_mr *local_mr;
-    struct ibv_mr *receiver_buffer_mr;
+    /* RDMA memory resources */
+    struct rdma_buffer_attr remote_metadata_attr;
+
+    /* These are memory buffers */
+    struct ibv_mr *mr;
 
 } fd_resources;
 
 fd_resources our_fds[256] = {NULL};
 int fd_count = -1;
-
-char *destination_noalloc = NULL;
 
 ssize_t read(int __fd, void *__buf, size_t __nbytes) {
     // check against our stored fds, if we don't have it let it go, otherwise use our recv
@@ -232,25 +195,25 @@ int socket(int domain, int type, int protocol) {
     if (is_socket_supported(domain, type, protocol)) {
         int ret = -1;
         /*  Open a channel used to report asynchronous communication event */
-        cm_event_channel = rdma_create_event_channel();
-        if (!cm_event_channel) {
+        event_channel = rdma_create_event_channel();
+        if (!event_channel) {
             rdma_error("Creating cm event channel failed with errno : (%d)", -errno);
             return -errno;
         }
-        debug("RDMA CM event channel is created successfully at %p \n", cm_event_channel);
+        debug("RDMA CM event channel is created successfully at %p \n", event_channel);
         /* rdma_cm_id is the connection identifier (like socket) which is used
          * to define an RDMA connection.
          */
-        ret = rdma_create_id(cm_event_channel, &cm_host_id, NULL, RDMA_PS_TCP);
+        ret = rdma_create_id(event_channel, &cm_id, NULL, RDMA_PS_TCP);
         debug(ANSI_COLOR_YELLOW "\tRDMA ID created\n" ANSI_COLOR_RESET);
         if (ret) {
             rdma_error("Creating cm id failed with errno: %d ", -errno);
             return -errno;
         }
         fd_count++;
-        our_fds[fd_count].fd = (int)cm_host_id;
-        debug("socket made with id %d, cm_id %d\n", (int)cm_host_id, cm_host_id);
-        return cm_host_id;
+        our_fds[fd_count].fd = (int)cm_id;
+        debug("socket made with id %d, cm_id %d\n", (int)cm_id, cm_id);
+        return cm_id;
     }
     return _socket(domain, type, protocol);
 }
@@ -262,7 +225,7 @@ int listen(int __fd, int __n) {
      * connected, a new connection management (CM) event is generated on the
      * RDMA CM event channel from where the listening id was created. Here we
      * have only one channel, so it is easy. */
-    int ret = rdma_listen(cm_host_id, 8); /* backlog = 8 clients, same as TCP, see man listen*/
+    int ret = rdma_listen(cm_id, 8); /* backlog = 8 clients, same as TCP, see man listen*/
     if (ret) {
         rdma_error("rdma_listen failed to listen on server address, errno: %d ", -errno);
         return -errno;
@@ -287,8 +250,8 @@ int accept(int socket, struct sockaddr *restrict address,
      */
     int ret = -1;
     struct rdma_cm_event *cm_event = NULL;
-    cm_event_channel = cm_host_id->channel;  // WIP: fds.
-    ret = process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_CONNECT_REQUEST, &cm_event);
+    event_channel = cm_id->channel;  // WIP: fds.
+    ret = process_rdma_cm_event(event_channel, RDMA_CM_EVENT_CONNECT_REQUEST, &cm_event);
     if (ret) {
         rdma_error("Failed to get cm event, ret = %d \n", ret);
         return ret;
@@ -297,7 +260,7 @@ int accept(int socket, struct sockaddr *restrict address,
      * for newly connected client. In the case of RDMA, this is stored in id
      * field. For more details: man rdma_get_cm_event
      */
-    cm_remote_id = cm_event->id;
+    cm_id = cm_event->id;
     /* now we acknowledge the event. Acknowledging the event free the resources
      * associated with the event structure. Hence any reference to the event
      * must be made before acknowledgment. Like, we have already saved the
@@ -308,7 +271,7 @@ int accept(int socket, struct sockaddr *restrict address,
         rdma_error("Failed to acknowledge the cm event errno: %d \n", -errno);
         return -errno;
     }
-    debug("A new RDMA client connection id is stored at %p\n", cm_remote_id);
+    debug("A new RDMA client connection id is stored at %p\n", cm_id);
 
     debug("cm event id: %d\n", cm_event);
 
@@ -318,7 +281,7 @@ int accept(int socket, struct sockaddr *restrict address,
     our_fds[fd_count].fd = (int)cm_event->id;
     debug("socket made with id %d, cm_id %d\n", (int)cm_event->id, cm_event);
 
-    if (!cm_remote_id) {
+    if (!cm_id) {
         rdma_error("Client id is still NULL \n");
         return -EINVAL;
     }
@@ -333,7 +296,7 @@ int accept(int socket, struct sockaddr *restrict address,
      * in the operating system. All resources are tied to a particular PD.
      * And accessing recourses across PD will result in a protection fault.
      */
-    pd = ibv_alloc_pd(cm_remote_id->verbs
+    pd = ibv_alloc_pd(cm_id->verbs
 	/* verbs defines a verb's provider,
 		* i.e an RDMA device where the incoming
 		* client connection came */);
@@ -346,22 +309,22 @@ int accept(int socket, struct sockaddr *restrict address,
      * notifications are sent. Remember, this is different from connection
      * management (CM) event notifications.
      * A completion channel is also tied to an RDMA device, hence we will
-     * use cm_remote_id->verbs.
+     * use cm_host_id->verbs.
      */
-    io_completion_channel = ibv_create_comp_channel(cm_remote_id->verbs);
-    if (!io_completion_channel) {
+    completion_channel = ibv_create_comp_channel(cm_id->verbs);
+    if (!completion_channel) {
         rdma_error("Failed to create an I/O completion event channel, %d\n", -errno);
         return -errno;
     }
-    debug("An I/O completion event channel is created at %p \n", io_completion_channel);
+    debug("An I/O completion event channel is created at %p \n", completion_channel);
     /* Now we create a completion queue (CQ) where actual I/O
      * completion metadata is placed. The metadata is packed into a structure
      * called struct ibv_wc (wc = work completion). ibv_wc has detailed
      * information about the work completion. An I/O request in RDMA world
      * is called "work" ;)
      */
-    cq = ibv_create_cq(cm_remote_id->verbs /* which device*/, CQ_CAPACITY /* maximum capacity*/, NULL /* user context, not used here */,
-                       io_completion_channel /* which IO completion channel */, 0 /* signaling vector, not used here*/);
+    cq = ibv_create_cq(cm_id->verbs /* which device*/, CQ_CAPACITY /* maximum capacity*/, NULL /* user context, not used here */,
+                       completion_channel /* which IO completion channel */, 0 /* signaling vector, not used here*/);
     if (!cq) {
         rdma_error("Failed to create a completion queue (cq), errno: %d\n", -errno);
         return -errno;
@@ -377,6 +340,7 @@ int accept(int socket, struct sockaddr *restrict address,
      * capacity. The capacity here is define statically but this can be probed
      * from the device. We just use a small number as defined in rdma_common.h
      */
+    struct ibv_qp_init_attr qp_init_attr;
     bzero(&qp_init_attr, sizeof qp_init_attr);
     qp_init_attr.cap.max_recv_sge = MAX_SGE; /* Maximum SGE per receive posting */
     qp_init_attr.cap.max_recv_wr = MAX_WR;   /* Maximum receive posting capacity */
@@ -388,13 +352,13 @@ int accept(int socket, struct sockaddr *restrict address,
     qp_init_attr.send_cq = cq; /* Where should I notify for send completion operations */
 
     /*Lets create a QP */
-    ret = rdma_create_qp(cm_remote_id /* which connection id */, pd /* which protection domain*/, &qp_init_attr /* Initial attributes */);
+    ret = rdma_create_qp(cm_id /* which connection id */, pd /* which protection domain*/, &qp_init_attr /* Initial attributes */);
     if (ret) {
         rdma_error("Failed to create QP due to errno: %d\n", -errno);
         return -errno;
     }
     /* Save the reference for handy typing but is not required */
-    qp = cm_remote_id->qp;
+    qp = cm_id->qp;
     debug("Client QP created at %p\n", qp);
 
 #pragma endregion
@@ -409,7 +373,7 @@ int accept(int socket, struct sockaddr *restrict address,
     /* This tell how many outstanding requests we expect other side to handle */
     conn_param.responder_resources = 3; /* For this exercise, we put a small number */
     conn_param.rnr_retry_count = 7;
-    ret = rdma_accept(cm_remote_id, &conn_param);
+    ret = rdma_accept(cm_id, &conn_param);
     if (ret) {
         rdma_error("Failed to accept the connection, errno: %d \n", -errno);
         return -errno;
@@ -418,9 +382,9 @@ int accept(int socket, struct sockaddr *restrict address,
      * connection has been established and everything is fine on both, server
      * as well as the client sides.
      */
-    debug("Going to wait for : RDMA_CM_EVENT_ESTABLISHED event \n");
+    debug("Going to wait for RDMA_CM_EVENT_ESTABLISHED event \n");
 
-    ret = process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ESTABLISHED, &cm_event);
+    ret = process_rdma_cm_event(event_channel, RDMA_CM_EVENT_ESTABLISHED, &cm_event);
     if (ret) {
         rdma_error("Failed to get the cm event, errnp: %d \n", -errno);
         return -errno;
@@ -433,12 +397,12 @@ int accept(int socket, struct sockaddr *restrict address,
         return -errno;
     }
 
-    static struct ibv_sge client_recv_sge;
-    static struct ibv_recv_wr client_recv_wr, *bad_client_recv_wr = NULL;
-    static struct ibv_mr *client_metadata_mr = NULL;
-    client_metadata_mr = rdma_buffer_register(pd /* which protection domain */, &remote_metadata_attr /* what memory */,
-                                              sizeof(remote_metadata_attr) /* what length */, (IBV_ACCESS_LOCAL_WRITE) /* access permissions */);
-    if (!client_metadata_mr) {
+    static struct ibv_sge remote_recv_sge;
+    static struct ibv_recv_wr remote_recv_wr, *bad_remote_recv_wr = NULL;
+    // static struct ibv_mr *client_metadata_mr = NULL;
+    host_mr = rdma_buffer_register(pd /* which protection domain */, &remote_metadata_attr /* what memory */,
+                                     sizeof(remote_metadata_attr) /* what length */, (IBV_ACCESS_LOCAL_WRITE) /* access permissions */);
+    if (!&remote_metadata_attr) {
         rdma_error("Failed to register client attr buffer\n");
         // we assume ENOMEM
         return -ENOMEM;
@@ -446,15 +410,15 @@ int accept(int socket, struct sockaddr *restrict address,
 
     /* We pre-post this receive buffer for client metadata on the QP. SGE credentials is where we
      * receive the metadata from the client */
-    client_recv_sge.addr = (uint64_t)client_metadata_mr->addr;  // same as &client_buffer_attr
-    client_recv_sge.length = client_metadata_mr->length;
-    client_recv_sge.lkey = client_metadata_mr->lkey;
+    remote_recv_sge.addr = (uint64_t)host_mr->addr;
+    remote_recv_sge.length = host_mr->length;
+    remote_recv_sge.lkey = host_mr->lkey;
     /* Now we link this SGE to the work request (WR) */
-    bzero(&client_recv_wr, sizeof(client_recv_wr));
-    client_recv_wr.sg_list = &client_recv_sge;
-    client_recv_wr.num_sge = 1;  // only one SGE
+    bzero(&remote_recv_wr, sizeof(remote_recv_wr));
+    remote_recv_wr.sg_list = &remote_recv_sge;
+    remote_recv_wr.num_sge = 1;  // only one SGE
     debug("accept: preposting buffer for client metadata to recv\n");
-    ret = ibv_post_recv(qp /* which QP */, &client_recv_wr /* receive work request*/, &bad_client_recv_wr /* error WRs */);
+    ret = ibv_post_recv(qp /* which QP */, &remote_recv_wr /* receive work request*/, &bad_remote_recv_wr /* error WRs */);
     if (ret) {
         rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
         return ret;
@@ -463,7 +427,7 @@ int accept(int socket, struct sockaddr *restrict address,
 
     return our_fds[fd_count].fd;
 
-    // TODO return cm_remote_id here (as new socket)
+    // TODO return cm_host_id here (as new socket)
 }
 
 int bind(int socket, const struct sockaddr *server_sockaddr,
@@ -473,7 +437,7 @@ int bind(int socket, const struct sockaddr *server_sockaddr,
 
     char *ip = inet_ntoa(((struct sockaddr_in *)server_sockaddr)->sin_addr);
     debug("Trying to bind %s\n", ip);
-    int ret = rdma_bind_addr(cm_host_id, (struct sockaddr *)server_sockaddr);
+    int ret = rdma_bind_addr(cm_id, (struct sockaddr *)server_sockaddr);
     if (ret) {
         rdma_error("Failed to bind server address, errno: %d \n", -errno);
         return -errno;
@@ -483,7 +447,6 @@ int bind(int socket, const struct sockaddr *server_sockaddr,
 
 int not_first = 0;
 ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
-    // usleep(500);
     // FIXME -- you can remember the file descriptors that you have generated in
     // the socket call and match them here
     debug(ANSI_COLOR_YELLOW "\tSEND CALL\n" ANSI_COLOR_RESET);
@@ -503,14 +466,17 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
 
         // post receive buffer
         int ret = -1;
-        // if (not_first) {
-        
-        // }
-        // not_first = 1;
 
         // allocate destination buffer -- ?
-        if (!destination_noalloc) destination_noalloc = calloc(len, 1);
-        if (sizeof(destination_noalloc) < len) destination_noalloc = realloc(destination_noalloc, len);
+        if (!destination_noalloc) {
+            printf(ANSI_COLOR_RED "expensive\n" ANSI_COLOR_RESET);
+            destination_noalloc = calloc(len, 1);
+        }
+        // TODO add back in:
+        // if (sizeof(destination_noalloc)/sizeof(destination_noalloc[0]) < len) {
+        // 	printf(ANSI_COLOR_RED"expensive2 %d\n"ANSI_COLOR_RESET, sizeof(destination_noalloc)/sizeof(destination_noalloc[0]));
+        // 	destination_noalloc = realloc(destination_noalloc, len);
+        // }
         if (!destination_noalloc) {
             rdma_error("Failed to allocate destination memory, -ENOMEM\n");
             // free(src);
@@ -520,17 +486,21 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
         // send(): exchange metadata with remote side
         struct ibv_wc wc[2];
 
-        if (!local_mr) local_mr = rdma_buffer_register(pd, buf, len, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE));
-        if (!local_mr) {
+        // if (!local_data_mr) { you can't actually do this
+        printf(ANSI_COLOR_RED "expensive3\n" ANSI_COLOR_RESET);
+        host_mr = rdma_buffer_register(pd, buf, len, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE));
+        // }
+        if (!host_mr) {
             rdma_error("Failed to register the data buffer, ret = %d \n", ret);
             return ret;
         }
 
+        // TODO refactor out because expensive (29us!)
         struct rdma_buffer_attr local_metadata;
         /* we prepare metadata for the data buffer */
-        local_metadata.address = (uint64_t)local_mr->addr;
-        local_metadata.length = local_mr->length;
-        local_metadata.stag.local_stag = local_mr->lkey;
+        local_metadata.address = (uint64_t)host_mr->addr;
+        local_metadata.length = host_mr->length;
+        local_metadata.stag.local_stag = host_mr->lkey;
 
         static struct ibv_mr *metadata_mr;
         /* now we register the metadata memory */
@@ -547,7 +517,7 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
         send_sge.length = (uint32_t)metadata_mr->length;
         send_sge.lkey = metadata_mr->lkey;
         /* now we link to the send work request */
-        bzero(&send_wr, sizeof(send_wr));
+        bzero(&send_wr, sizeof(send_wr));  // wow important
         send_wr.sg_list = &send_sge;
         send_wr.num_sge = 1;
         send_wr.opcode = IBV_WR_SEND;
@@ -564,20 +534,20 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
          * send and one for recv that we will get from the server for
          * its buffer information */
         debug("process work\n");
-        ret = process_work_completion_events(io_completion_channel, wc, 2);
+        ret = process_work_completion_events(completion_channel, wc, 2);
         if (ret != 2) {
             rdma_error("We failed to get 2 work completions , ret = %d \n", ret);
             return ret;
         }
         debug("Remote sent us its buffer location and credentials, showing \n");
-        show_rdma_buffer_attr(&remote_metadata_attr);  // TODO this is a client side struct,
-                                                       // should be made generic
+        // TODO remove for latency
+        show_rdma_buffer_attr(&remote_metadata_attr);
 
         // remote mem ops
         ret = -1;
-        if (!dst_mr) {
-            dst_mr = rdma_buffer_register(pd, destination_noalloc, len, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ));
-            if (!dst_mr) {
+        if (!host_mr) {
+            host_mr = rdma_buffer_register(pd, destination_noalloc, len, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ));
+            if (!host_mr) {
                 rdma_error("We failed to create the destination buffer, -ENOMEM\n");
                 return -ENOMEM;
             }
@@ -585,11 +555,11 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
         /* Step 1: is to copy the local buffer into the remote buffer. We will
          * reuse the previous variables. */
         /* now we fill up SGE */
-        send_sge.addr = (uint64_t)local_mr->addr;
-        send_sge.length = (uint32_t)local_mr->length;
-        send_sge.lkey = local_mr->lkey;
+        send_sge.addr = (uint64_t)host_mr->addr;
+        send_sge.length = (uint32_t)host_mr->length;
+        send_sge.lkey = host_mr->lkey;
         /* now we link to the send work request */
-        bzero(&send_wr, sizeof(send_wr));
+        // bzero(&send_wr, sizeof(send_wr));
         send_wr.sg_list = &send_sge;
         send_wr.num_sge = 1;
         send_wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
@@ -608,7 +578,7 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
             return -errno;
         }
         /* at this point we are expecting 1 work completion for the write */
-        ret = process_work_completion_events(io_completion_channel, &wc, 1);
+        ret = process_work_completion_events(completion_channel, &wc, 1);
         if (ret != 1) {
             rdma_error("We failed to get 1 work completions , ret = %d \n", ret);
             return ret;
@@ -616,29 +586,18 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
 
         debug("Client side WRITE is complete \n");
 
-        // // write is complete,  now we signal the remote side that we are done:
-        // struct ibv_send_wr send_wr2, *bad_send_wr2;
-        // /* now we fill up SGE */
-        // /* now we link to the send work request */
-        // bzero(&send_wr2, sizeof(send_wr2));
-        // send_wr2.num_sge = 0;
-        // send_wr2.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
-        // /* Now we post it */
-        // ret = ibv_post_recv(qp, &send_wr2, &bad_send_wr2);
-        // if (ret) {
-        //     rdma_error("Failed to send client metadata, errno: %d \n", -errno);
-        //     return -errno;
-        // }
+        struct ibv_mr *remote_metadata_mr;
+        struct ibv_sge server_recv_sge;
+        static struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr = NULL;
 
-		struct ibv_mr *server_metadata_mr;
-        server_metadata_mr = rdma_buffer_register(pd, &remote_metadata_attr, sizeof(remote_metadata_attr), (IBV_ACCESS_LOCAL_WRITE));
-        if (!server_metadata_mr) {
+        remote_metadata_mr = rdma_buffer_register(pd, &remote_metadata_attr, sizeof(remote_metadata_attr), (IBV_ACCESS_LOCAL_WRITE));
+        if (!remote_metadata_mr) {
             rdma_error("Failed to setup the server metadata mr , -ENOMEM\n");
             return -ENOMEM;
         }
-        server_recv_sge.addr = (uint64_t)server_metadata_mr->addr;
-        server_recv_sge.length = (uint32_t)server_metadata_mr->length;
-        server_recv_sge.lkey = (uint32_t)server_metadata_mr->lkey;
+        server_recv_sge.addr = (uint64_t)remote_metadata_mr->addr;
+        server_recv_sge.length = (uint32_t)remote_metadata_mr->length;
+        server_recv_sge.lkey = (uint32_t)remote_metadata_mr->lkey;
         /* now we link it to the request */
         bzero(&server_recv_wr, sizeof(server_recv_wr));
         server_recv_wr.sg_list = &server_recv_sge;
@@ -659,7 +618,6 @@ ssize_t send(int sockfd, const void *buf, size_t len, int flags) {
 }
 
 ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
-    // usleep(150);
     debug(ANSI_COLOR_YELLOW "\tRECV CALL\n" ANSI_COLOR_RESET);
 
     bool is_anp_sockfd = false;
@@ -678,7 +636,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
         static struct ibv_recv_wr client_recv_wr, *bad_client_recv_wr = NULL;
         struct rdma_cm_event *cm_event = NULL;
 
-        // if (!cm_remote_id || !qp) {
+        // if (!cm_host_id || !qp) {
         //     rdma_error("Client resources are not properly setup\n");
         //     return -EINVAL;
         // }
@@ -694,7 +652,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
          * our pre-posted receive request.
          */
         debug("process work\n");
-        ret = process_work_completion_events(io_completion_channel, &wc, 1);
+        ret = process_work_completion_events(completion_channel, &wc, 1);
         if (ret != 1) {
             rdma_error("Failed to receive , ret = %d \n", ret);
             return ret;
@@ -707,20 +665,19 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
         debug("The remote has requested buffer length of : %u bytes \n", remote_metadata_attr.length);
         /* We need to setup requested memory buffer. This is where the sender
          * will do RDMA WRITE. */
-        if (!receiver_buffer_mr) {
-            receiver_buffer_mr =
-                rdma_buffer_alloc(pd /* which protection domain */, remote_metadata_attr.length /* what size to allocate */,
-                                  (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE), /* access permissions */
-                                  buf);
-        }
-        if (receiver_buffer_mr->length < remote_metadata_attr.length) {
-            rdma_buffer_deregister(receiver_buffer_mr);
-            receiver_buffer_mr =
-                rdma_buffer_alloc(pd /* which protection domain */, remote_metadata_attr.length /* what size to allocate */,
-                                  (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE), /* access permissions */
-                                  buf);
-        }
-        if (!receiver_buffer_mr) {
+        // if (!host_mr) {
+        host_mr = rdma_buffer_alloc(pd /* which protection domain */, remote_metadata_attr.length /* what size to allocate */,
+                                      (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE), /* access permissions */
+                                      buf);
+        // }
+        // if (host_mr->length < remote_metadata_attr.length) {
+        //     rdma_buffer_deregister(host_mr);
+        //     host_mr =
+        //         rdma_buffer_alloc(pd /* which protection domain */, remote_metadata_attr.length /* what size to allocate */,
+        //                           (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE), /* access permissions */
+        //                           buf);
+        // }
+        if (!host_mr) {
             rdma_error("Failed to create a buffer for receiver\n");
             /* we assume that it is due to out of memory error */
             return -ENOMEM;
@@ -733,13 +690,13 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
          * buffer.
          */
         struct rdma_buffer_attr receiver_metadata_attr;
-        receiver_metadata_attr.address = (uint64_t)receiver_buffer_mr->addr;
-        receiver_metadata_attr.length = (uint32_t)receiver_buffer_mr->length;
-        receiver_metadata_attr.stag.local_stag = (uint32_t)receiver_buffer_mr->lkey;
-        server_metadata_mr = rdma_buffer_register(pd /* which protection domain*/, &receiver_metadata_attr /* which memory to register */,
-                                                  sizeof(receiver_metadata_attr) /* what is the size of memory */,
-                                                  IBV_ACCESS_LOCAL_WRITE /* what access permission */);
-        if (!server_metadata_mr) {
+        receiver_metadata_attr.address = (uint64_t)host_mr->addr;
+        receiver_metadata_attr.length = (uint32_t)host_mr->length;
+        receiver_metadata_attr.stag.local_stag = (uint32_t)host_mr->lkey;
+        host_mr = rdma_buffer_register(pd /* which protection domain*/, &receiver_metadata_attr /* which memory to register */,
+                                       sizeof(receiver_metadata_attr) /* what is the size of memory */,
+                                       IBV_ACCESS_LOCAL_WRITE /* what access permission */);
+        if (!host_mr) {
             rdma_error("Receiver failed to create to hold receiver metadata \n");
             /* we assume that this is due to out of memory error */
             return -ENOMEM;
@@ -749,10 +706,13 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
          * A send request consists of multiple SGE elements. In our case, we
          * only have one
          */
+        struct ibv_sge server_send_sge;
         server_send_sge.addr = (uint64_t)&receiver_metadata_attr;
         server_send_sge.length = sizeof(receiver_metadata_attr);
-        server_send_sge.lkey = server_metadata_mr->lkey;
+        server_send_sge.lkey = host_mr->lkey;
         /* now we link this sge to the send request */
+        struct ibv_send_wr server_send_wr, *bad_server_send_wr = NULL;
+
         bzero(&server_send_wr, sizeof(server_send_wr));
         server_send_wr.sg_list = &server_send_sge;
         server_send_wr.num_sge = 1;                     // only 1 SGE element in the array
@@ -769,7 +729,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
         }
 
         /* We check for completion notification */
-        ret = process_work_completion_events(io_completion_channel, &wc, 1);
+        ret = process_work_completion_events(completion_channel, &wc, 1);
         if (ret != 1) {
             rdma_error("Failed to send receiver metadata, ret = %d \n", ret);
             return ret;
@@ -779,7 +739,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
         // nowait
         // post receive request for send completion signal
 
-		static struct ibv_mr *send_signal_mr = NULL;
+        static struct ibv_mr *send_signal_mr = NULL;
         // client_recv_sge.addr = (uint64_t)send_signal_mr->addr;  // same as &client_buffer_attr
         // client_recv_sge.length = send_signal_mr->length;
         // client_recv_sge.lkey = send_signal_mr->lkey;
@@ -796,14 +756,15 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
         debug("send signal buffer posting is successful \n");
         // Look for a completion of remote side write
         debug("nowait: trying to process WRITE event:\n\n");
-        ret = process_work_completion_events(io_completion_channel, &wc, 1);
+        ret = process_work_completion_events(completion_channel, &wc, 1);
         if (ret != 1) {
             rdma_error("We failed to get 1 work completions , ret = %d \n", ret);
             return ret;
         }
 
         // prepost for next recv
-        static struct ibv_mr *client_metadata_mr = NULL; // TODO: rename as remote_metadata_mr
+        // TODONOW i'm pretty sure it's here
+        static struct ibv_mr *client_metadata_mr = NULL;  // TODO: rename as remote_metadata_mr
 
         client_metadata_mr = rdma_buffer_register(pd /* which protection domain */, &remote_metadata_attr /* what memory */,
                                                   sizeof(remote_metadata_attr) /* what length */, (IBV_ACCESS_LOCAL_WRITE) /* access permissions */);
@@ -828,6 +789,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags) {
             rdma_error("Failed to post the receive buffer, errno: %d \n", ret);
             return ret;
         }
+
         debug("Receive buffer posting is successful \n");
         return len;
     }
@@ -842,8 +804,8 @@ int close(int sockfd) {
     debug(ANSI_COLOR_YELLOW "\tCLOSE CALL\n" ANSI_COLOR_RESET);
 
     // todoremove: structs check
-    // if (pd != NULL && cm_host_id != NULL && cm_remote_id != NULL)
-    //     debug("host match: %d, remote match: %d\n", pd == cm_host_id->pd, pd == cm_remote_id->pd);
+    // if (pd != NULL && cm_host_id != NULL && cm_host_id != NULL)
+    //     debug("host match: %d, remote match: %d\n", pd == cm_host_id->pd, pd == cm_host_id->pd);
     // if (cm_event_channel != NULL && cm_host_id != NULL) debug("%d\n", cm_event_channel == cm_host_id->channel);
     // if (qp != NULL && cm_host_id != NULL) debug("%d\n", qp == cm_host_id->qp);
     // if (cq != NULL && cm_host_id != NULL) debug("%d\n", cq == cm_host_id->send_cq || cq == cm_host_id->recv_cq);
@@ -867,7 +829,7 @@ int close(int sockfd) {
         //     debug("not sure what to do here %d", -errno);
         // }
         // close code
-        // if (cm_host_id == NULL && cm_remote_id != NULL) rdma_disconnect(cm_remote_id);  // hacky way to check if we are server or client (remove)
+        // if (cm_host_id == NULL && cm_host_id != NULL) rdma_disconnect(cm_host_id);  // hacky way to check if we are server or client (remove)
         // struct rdma_cm_event *cm_event = NULL;
         // if (cm_host_id != NULL) process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_DISCONNECTED, &cm_event);
         // rdma_ack_cm_event(cm_event);
@@ -875,7 +837,7 @@ int close(int sockfd) {
         // rdma_destroy_qp(cm_host_id);
         // /* Destroy client cm id */
         // rdma_destroy_id(cm_host_id);
-        // if (cm_remote_id != NULL) rdma_destroy_id(cm_remote_id);
+        // if (cm_host_id != NULL) rdma_destroy_id(cm_host_id);
         // /* Destroy CQ */
         // ibv_destroy_cq(client_cq);
         // /* Destroy completion channel */
@@ -914,16 +876,16 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     }
 
     char *ip = inet_ntoa(((struct sockaddr_in *)addr)->sin_addr);
-    debug("cm host id: %i, cm remote id: %i, remote ip: %s\n", cm_host_id, cm_remote_id, ip);
+    debug("cm host id: %i, cm remote id: %i, remote ip: %s\n", cm_id, cm_id, ip);
     if (is_anp_sockfd) {
-        int ret = rdma_resolve_addr(cm_host_id, NULL, (struct sockaddr *)addr, 2000);
+        int ret = rdma_resolve_addr(cm_id, NULL, (struct sockaddr *)addr, 2000);
         struct rdma_cm_event *cm_event = NULL;
         if (ret) {
             rdma_error("Failed to resolve address, errno: %d \n", -errno);
             return -errno;
         }
         debug("waiting for cm event: RDMA_CM_EVENT_ADDR_RESOLVED\n");
-        ret = process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ADDR_RESOLVED, &cm_event);
+        ret = process_rdma_cm_event(event_channel, RDMA_CM_EVENT_ADDR_RESOLVED, &cm_event);
         if (ret) {
             rdma_error("Failed to receive a valid event, ret = %d \n", ret);
             return ret;
@@ -938,13 +900,13 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 
         /* Resolves an RDMA route to the destination address in order to
          * establish a connection */
-        ret = rdma_resolve_route(cm_host_id, 2000);
+        ret = rdma_resolve_route(cm_id, 2000);
         if (ret) {
             rdma_error("Failed to resolve route, erno: %d \n", -errno);
             return -errno;
         }
         debug("waiting for cm event: RDMA_CM_EVENT_ROUTE_RESOLVED\n");
-        ret = process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ROUTE_RESOLVED, &cm_event);
+        ret = process_rdma_cm_event(event_channel, RDMA_CM_EVENT_ROUTE_RESOLVED, &cm_event);
         if (ret) {
             rdma_error("Failed to receive a valid event, ret = %d \n", ret);
             return ret;
@@ -962,7 +924,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
          * in the operating system. All resources are tied to a particular PD.
          * And accessing recourses across PD will result in a protection fault.
          */
-        pd = ibv_alloc_pd(cm_host_id->verbs);
+        pd = ibv_alloc_pd(cm_id->verbs);
         if (!pd) {
             rdma_error("Failed to alloc pd, errno: %d \n", -errno);
             return -errno;
@@ -974,26 +936,26 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
          * A completion channel is also tied to an RDMA device, hence we will
          * use cm_host_id->verbs.
          */
-        io_completion_channel = ibv_create_comp_channel(cm_host_id->verbs);
-        if (!io_completion_channel) {
+        completion_channel = ibv_create_comp_channel(cm_id->verbs);
+        if (!completion_channel) {
             rdma_error("Failed to create IO completion event channel, errno: %d\n", -errno);
             return -errno;
         }
-        debug("completion event channel created at : %p \n", io_completion_channel);
+        debug("completion event channel created at : %p \n", completion_channel);
         /* Now we create a completion queue (CQ) where actual I/O
          * completion metadata is placed. The metadata is packed into a
          * structure called struct ibv_wc (wc = work completion). ibv_wc has
          * detailed information about the work completion. An I/O request in
          * RDMA world is called "work" ;)
          */
-        client_cq = ibv_create_cq(cm_host_id->verbs /* which device*/, CQ_CAPACITY /* maximum capacity*/, NULL /* user context, not used here */,
-                                  io_completion_channel /* which IO completion channel */, 0 /* signaling vector, not used here*/);
-        if (!client_cq) {
+        cq = ibv_create_cq(cm_id->verbs /* which device*/, CQ_CAPACITY /* maximum capacity*/, NULL /* user context, not used here */,
+                           completion_channel /* which IO completion channel */, 0 /* signaling vector, not used here*/);
+        if (!cq) {
             rdma_error("Failed to create CQ, errno: %d \n", -errno);
             return -errno;
         }
-        debug("CQ created at %p with %d elements \n", client_cq, client_cq->cqe);
-        ret = ibv_req_notify_cq(client_cq, 0);
+        debug("CQ created at %p with %d elements \n", cq, cq->cqe);
+        ret = ibv_req_notify_cq(cq, 0);
         if (ret) {
             rdma_error("Failed to request notifications, errno: %d\n", -errno);
             return -errno;
@@ -1002,6 +964,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
          * their capacity. The capacity here is define statically but this can
          * be probed from the device. We just use a small number as defined in
          * rdma_common.h */
+        struct ibv_qp_init_attr qp_init_attr;
         bzero(&qp_init_attr, sizeof qp_init_attr);
         qp_init_attr.cap.max_recv_sge = MAX_SGE; /* Maximum SGE per receive posting */
         qp_init_attr.cap.max_recv_wr = MAX_WR;   /* Maximum receive posting capacity */
@@ -1009,17 +972,17 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
         qp_init_attr.cap.max_send_wr = MAX_WR;   /* Maximum send posting capacity */
         qp_init_attr.qp_type = IBV_QPT_RC;       /* QP type, RC = Reliable connection */
         /* We use same completion queue, but one can use different queues */
-        qp_init_attr.recv_cq = client_cq; /* Where should I notify for receive
+        qp_init_attr.recv_cq = cq; /* Where should I notify for receive
                                              completion operations */
-        qp_init_attr.send_cq = client_cq; /* Where should I notify for send
+        qp_init_attr.send_cq = cq; /* Where should I notify for send
                                              completion operations */
         /*Lets create a QP */
-        ret = rdma_create_qp(cm_host_id /* which connection id */, pd /* which protection domain*/, &qp_init_attr /* Initial attributes */);
+        ret = rdma_create_qp(cm_id /* which connection id */, pd /* which protection domain*/, &qp_init_attr /* Initial attributes */);
         if (ret) {
             rdma_error("Failed to create QP, errno: %d \n", -errno);
             return -errno;
         }
-        qp = cm_host_id->qp;
+        qp = cm_id->qp;
         debug("QP created at %p \n", qp);
 
         struct rdma_conn_param conn_param;
@@ -1029,13 +992,13 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
         conn_param.responder_resources = 3;
         conn_param.retry_count = 3;  // if fail, then how many times to retry
         conn_param.rnr_retry_count = 7;
-        ret = rdma_connect(cm_host_id, &conn_param);
+        ret = rdma_connect(cm_id, &conn_param);
         if (ret) {
             rdma_error("Failed to connect to remote host , errno: %d\n", -errno);
             return -errno;
         }
         debug("waiting for cm event: RDMA_CM_EVENT_ESTABLISHED\n");
-        ret = process_rdma_cm_event(cm_event_channel, RDMA_CM_EVENT_ESTABLISHED, &cm_event);
+        ret = process_rdma_cm_event(event_channel, RDMA_CM_EVENT_ESTABLISHED, &cm_event);
         if (ret) {
             rdma_error("Failed to get cm event, ret = %d \n", ret);
             return ret;
@@ -1049,14 +1012,16 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 
         // pre-post receive buffer
         ret = -1;
-        server_metadata_mr = rdma_buffer_register(pd, &remote_metadata_attr, sizeof(remote_metadata_attr), (IBV_ACCESS_LOCAL_WRITE));
-        if (!server_metadata_mr) {
+        host_mr = rdma_buffer_register(pd, &remote_metadata_attr, sizeof(remote_metadata_attr), (IBV_ACCESS_LOCAL_WRITE));
+        if (!host_mr) {
             rdma_error("Failed to setup the server metadata mr , -ENOMEM\n");
             return -ENOMEM;
         }
-        server_recv_sge.addr = (uint64_t)server_metadata_mr->addr;
-        server_recv_sge.length = (uint32_t)server_metadata_mr->length;
-        server_recv_sge.lkey = (uint32_t)server_metadata_mr->lkey;
+        struct ibv_sge server_recv_sge;
+        struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr;
+        server_recv_sge.addr = (uint64_t)host_mr->addr;
+        server_recv_sge.length = (uint32_t)host_mr->length;
+        server_recv_sge.lkey = (uint32_t)host_mr->lkey;
         /* now we link it to the request */
         bzero(&server_recv_wr, sizeof(server_recv_wr));
         server_recv_wr.sg_list = &server_recv_sge;

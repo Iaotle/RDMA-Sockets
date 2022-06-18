@@ -102,17 +102,17 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &client_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("new incoming connection from %s \n", debug_buffer);
 
-// SaNITY
+    // SaNITY
     printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
     char tx_buffer[TEST_BUFFER_LENGTH];
     write_pattern(tx_buffer, TEST_BUFFER_LENGTH);
-    send(client_fd, tx_buffer, TEST_BUFFER_LENGTH, 0); //SEND
+    send(client_fd, tx_buffer, TEST_BUFFER_LENGTH, 0);  // SEND
 
     char rx_buffer[TEST_BUFFER_LENGTH];
     bzero(rx_buffer, TEST_BUFFER_LENGTH);
     int so_far = 0;
     while (so_far < TEST_BUFFER_LENGTH) {
-        int ret = recv(client_fd, rx_buffer + so_far, TEST_BUFFER_LENGTH - so_far, 0); //RECV
+        int ret = recv(client_fd, rx_buffer + so_far, TEST_BUFFER_LENGTH - so_far, 0);  // RECV
         // printf("recv\n");
         if (0 > ret) {
             printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
@@ -120,15 +120,26 @@ int main(int argc, char** argv) {
         }
         so_far += ret;
     }
-    // sleep(1);
-	int count = 0;
-	while (match_pattern(rx_buffer, TEST_BUFFER_LENGTH) && count <= 10) {count++;};
-	if (count == 11) {
-		printf(ANSI_COLOR_RED"SANITY CHECK FAILED\n"ANSI_COLOR_RESET);
-		return -1;
-	}
+    int count = 0;
+    while (match_pattern2(rx_buffer, TEST_BUFFER_LENGTH) && count <= 10) {
+        count++;
+    };
+    if (count == 11) {
+        printf(ANSI_COLOR_RED "SANITY CHECK FAILED\n" ANSI_COLOR_RESET);
+        return -1;
+    }
 
     printf(ANSI_COLOR_GREEN "SaNITY CHECK OK\n" ANSI_COLOR_RESET);
+
+
+
+
+
+
+
+
+
+
 
     printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
     send_test(client_fd);
@@ -136,6 +147,52 @@ int main(int argc, char** argv) {
     recv_test(client_fd);
     printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
     send_test(client_fd);
+
+
+
+
+
+
+
+
+
+
+
+
+    printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
+    char tx_buffer2[TEST_BUFFER_LENGTH];
+    write_pattern2(tx_buffer2, TEST_BUFFER_LENGTH);
+    send(client_fd, tx_buffer2, TEST_BUFFER_LENGTH, 0);  // SEND
+
+    char rx_buffer2[TEST_BUFFER_LENGTH];
+    bzero(rx_buffer2, TEST_BUFFER_LENGTH);
+    so_far = 0;
+    while (so_far < TEST_BUFFER_LENGTH) {
+        int ret = recv(client_fd, rx_buffer2 + so_far, TEST_BUFFER_LENGTH - so_far, 0);  // RECV
+        // printf("recv\n");
+        if (0 > ret) {
+            printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
+            return -ret;
+        }
+        so_far += ret;
+    }
+    count = 0;
+    while (match_pattern(rx_buffer2, TEST_BUFFER_LENGTH) && count <= 10) {
+        count++;
+    };
+    if (count == 11) {
+        printf(ANSI_COLOR_RED "SANITY CHECK FAILED\n" ANSI_COLOR_RESET);
+        return -1;
+    }
+
+    printf(ANSI_COLOR_GREEN "SaNITY CHECK OK\n" ANSI_COLOR_RESET);
+
+
+
+
+
+
+
 
     // close the two fds
     ret = close(client_fd);
