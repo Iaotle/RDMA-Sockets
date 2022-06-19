@@ -121,7 +121,7 @@ int run_test(int fd,
 		printf("Latency per call: "ANSI_COLOR_CYAN"%f\n"ANSI_COLOR_RESET, time_num/(double)NUM_ITERATIONS);
 		avg_latency += time_num;
     }
-	printf("Averages:\nGbps = "ANSI_COLOR_CYAN"%f"ANSI_COLOR_RESET", Latency "ANSI_COLOR_CYAN"%f\n"ANSI_COLOR_RESET, avg_bw/(double)(NUM_TESTS), avg_latency/NUM_TESTS*NUM_ITERATIONS);
+	printf("Averages:\nGbps = "ANSI_COLOR_CYAN"%f"ANSI_COLOR_RESET", Latency "ANSI_COLOR_CYAN"%f\n"ANSI_COLOR_RESET, avg_bw/(double)(NUM_TESTS), avg_latency/(NUM_TESTS*NUM_ITERATIONS));
 
 }
 

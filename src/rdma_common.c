@@ -20,7 +20,7 @@ void show_rdma_cmid(struct rdma_cm_id *id) {
 }
 
 // Debug info about buffer
-void show_rdma_buffer_attr(struct rdma_buffer_attr *attr) {
+inline void show_rdma_buffer_attr(struct rdma_buffer_attr *attr) {
     if (!attr) {
         rdma_error("Passed attr is NULL\n");
         return;
@@ -31,7 +31,7 @@ void show_rdma_buffer_attr(struct rdma_buffer_attr *attr) {
 }
 
 // Allocate RDMA buffer
-struct ibv_mr *rdma_buffer_alloc(struct ibv_pd *pd, uint32_t size, enum ibv_access_flags permission, void *buf) {
+inline struct ibv_mr *rdma_buffer_alloc(struct ibv_pd *pd, uint32_t size, enum ibv_access_flags permission, void *buf) {
     struct ibv_mr *mr = NULL;
     if (!pd) {
         rdma_error("Protection domain is NULL \n");
@@ -67,7 +67,7 @@ inline struct ibv_mr *rdma_buffer_register(struct ibv_pd *pd, void *addr, uint32
 }
 
 // Free RDMA buffer
-void rdma_buffer_free(struct ibv_mr *mr) {
+inline void rdma_buffer_free(struct ibv_mr *mr) {
     if (!mr) {
         rdma_error("Passed memory region is NULL, ignoring\n");
         return;
@@ -79,7 +79,7 @@ void rdma_buffer_free(struct ibv_mr *mr) {
 }
 
 // Deregister RDMA buffer
-void rdma_buffer_deregister(struct ibv_mr *mr) {
+inline void rdma_buffer_deregister(struct ibv_mr *mr) {
     if (!mr) {
         rdma_error("Passed memory region is NULL, ignoring\n");
         return;
@@ -89,7 +89,7 @@ void rdma_buffer_deregister(struct ibv_mr *mr) {
 }
 
 // Process CM event
-int process_rdma_cm_event(struct rdma_event_channel *echannel, enum rdma_cm_event_type expected_event, struct rdma_cm_event **cm_event) {
+inline int process_rdma_cm_event(struct rdma_event_channel *echannel, enum rdma_cm_event_type expected_event, struct rdma_cm_event **cm_event) {
     int ret = 1;
     ret = rdma_get_cm_event(echannel, cm_event);
     if (ret) {
@@ -116,7 +116,7 @@ int process_rdma_cm_event(struct rdma_event_channel *echannel, enum rdma_cm_even
     return ret;
 }
 
-const char *mapOpcodeToType(enum ibv_wc_opcode opcode) {
+inline const char *mapOpcodeToType(enum ibv_wc_opcode opcode) {
     switch (opcode) {
         case IBV_WC_SEND:
             return "IBV_WC_SEND";
@@ -142,7 +142,7 @@ const char *mapOpcodeToType(enum ibv_wc_opcode opcode) {
 }
 
 // Process WC (work completion) event
-int process_work_completion_events(struct ibv_comp_channel *comp_channel, struct ibv_wc *wc, int max_wc) {
+inline int process_work_completion_events(struct ibv_comp_channel *comp_channel, struct ibv_wc *wc, int max_wc) {
     struct ibv_cq *cq_ptr = NULL;
     void *context = NULL;
     int ret = -1, i, total_wc = 0;
@@ -194,7 +194,7 @@ int process_work_completion_events(struct ibv_comp_channel *comp_channel, struct
 }
 
 /* Code acknowledgment: rping.c from librdmacm/examples */
-int get_addr(char *dst, struct sockaddr *addr) {
+inline int get_addr(char *dst, struct sockaddr *addr) {
     struct addrinfo *res;
     int ret = -1;
     ret = getaddrinfo(dst, NULL, NULL, &res);
