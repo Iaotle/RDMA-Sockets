@@ -8,6 +8,8 @@
 		"bitset": "c",
 		"chrono": "c",
 		"algorithm": "c",
-		"all_common.h": "c"
+		"all_common.h": "c",
+		"errno.h": "c",
+		"config.h": "c"
 	}
 }

@@ -1,8 +1,8 @@
 /*
  * Copyright [2020] [Animesh Trivedi]
  *
- * This code is part of the Advanced Network Programming (ANP) course
- * at VU Amsterdam.
+ 
+ 
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include "../src/all_common.h"
-#include "../src/timer.h"
 #include "common.h"
 
 // sudo tcpdump -i wlp2s0 tcp port 43211
@@ -79,11 +77,11 @@ int main(int argc, char** argv) {
 
     // SaNITY
     printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
-    char rx_buffer[TEST_BUFFER_LENGTH];
-    bzero(rx_buffer, TEST_BUFFER_LENGTH);
+    char rx_buffer[TEST_MESSAGE_SIZE];
+    bzero(rx_buffer, TEST_MESSAGE_SIZE);
     int so_far = 0;
-    while (so_far < TEST_BUFFER_LENGTH) {
-        int ret = recv(server_fd, rx_buffer + so_far, TEST_BUFFER_LENGTH - so_far, 0);  // RECV
+    while (so_far < TEST_MESSAGE_SIZE) {
+        int ret = recv(server_fd, rx_buffer + so_far, TEST_MESSAGE_SIZE - so_far, 0);  // RECV
                                                                                         //  printf("recv\n");
         if (0 > ret) {
             printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
@@ -93,12 +91,12 @@ int main(int argc, char** argv) {
     }
 
 
-    char tx_buffer[TEST_BUFFER_LENGTH];
-    write_pattern2(tx_buffer, TEST_BUFFER_LENGTH);
-    send(server_fd, tx_buffer, TEST_BUFFER_LENGTH, 0);  // SEND
+    char tx_buffer[TEST_MESSAGE_SIZE];
+    write_pattern2(tx_buffer, TEST_MESSAGE_SIZE);
+    send(server_fd, tx_buffer, TEST_MESSAGE_SIZE, 0);  // SEND
 
 	int count = 0;
-    while (match_pattern(rx_buffer, TEST_BUFFER_LENGTH) && count <= 10) {
+    while (match_pattern(rx_buffer, TEST_MESSAGE_SIZE) && count <= 10) {
         count++;
     };
     if (count == 11) {
@@ -115,12 +113,12 @@ int main(int argc, char** argv) {
 
 
 
-    printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
+    // printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
     recv_test(server_fd);
-    printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
-    send_test(server_fd);
-    printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
-    recv_test(server_fd);
+    // printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
+    // send_test(server_fd);
+    // printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
+    // recv_test(server_fd);
 
 
 
@@ -129,44 +127,44 @@ int main(int argc, char** argv) {
 
 
 
-    printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
-    char rx_buffer2[TEST_BUFFER_LENGTH];
-    bzero(rx_buffer2, TEST_BUFFER_LENGTH);
-    so_far = 0;
-    while (so_far < TEST_BUFFER_LENGTH) {
-        int ret = recv(server_fd, rx_buffer2 + so_far, TEST_BUFFER_LENGTH - so_far, 0);  // RECV
-        if (0 > ret) {
-            printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far += ret;
-    }
+    // printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
+    // char rx_buffer2[TEST_MESSAGE_SIZE];
+    // bzero(rx_buffer2, TEST_MESSAGE_SIZE);
+    // so_far = 0;
+    // while (so_far < TEST_MESSAGE_SIZE) {
+    //     int ret = recv(server_fd, rx_buffer2 + so_far, TEST_MESSAGE_SIZE - so_far, 0);  // RECV
+    //     if (0 > ret) {
+    //         printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
+    //         return -ret;
+    //     }
+    //     so_far += ret;
+    // }
 
-    char tx_buffer2[TEST_BUFFER_LENGTH];
-    bzero(tx_buffer2, TEST_BUFFER_LENGTH);
-    write_pattern(tx_buffer2, TEST_BUFFER_LENGTH);
-    send(server_fd, tx_buffer2, TEST_BUFFER_LENGTH, 0);  // SEND
+    // char tx_buffer2[TEST_MESSAGE_SIZE];
+    // bzero(tx_buffer2, TEST_MESSAGE_SIZE);
+    // write_pattern(tx_buffer2, TEST_MESSAGE_SIZE);
+    // send(server_fd, tx_buffer2, TEST_MESSAGE_SIZE, 0);  // SEND
 
 
-    count = 0;
-    while (match_pattern2(rx_buffer2, TEST_BUFFER_LENGTH) && count <= 10) {
-        count++;
-    };
-    if (count == 11) {
-        printf(ANSI_COLOR_RED "SANITY CHECK FAILED\n" ANSI_COLOR_RESET);
-        return -1;
-    }
+    // count = 0;
+    // while (match_pattern2(rx_buffer2, TEST_MESSAGE_SIZE) && count <= 10) {
+    //     count++;
+    // };
+    // if (count == 11) {
+    //     printf(ANSI_COLOR_RED "SANITY CHECK FAILED\n" ANSI_COLOR_RESET);
+    //     return -1;
+    // }
 
-    printf(ANSI_COLOR_GREEN "SaNITY CHECK OK\n" ANSI_COLOR_RESET);
+    // printf(ANSI_COLOR_GREEN "SaNITY CHECK OK\n" ANSI_COLOR_RESET);
     // close the socket
     // now we sleep a bit to drain the queues and then trigger the close logic
-    printf("A 5 sec wait before calling close \n");
-    sleep(5);
+    // printf("A 5 sec wait before calling close \n");
+    // sleep(5);
     ret = close(server_fd);
     if (ret) {
         printf("Shutdown was not clean , ret %d errno %d \n ", ret, errno);
         return -ret;
     }
-    printf("OK: shutdown was fine. Good bye!\n");
+    // printf("OK: shutdown was fine. Good bye!\n");
     return 0;
 }

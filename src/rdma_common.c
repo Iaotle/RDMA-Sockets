@@ -51,13 +51,13 @@ inline struct ibv_mr *rdma_buffer_alloc(struct ibv_pd *pd, uint32_t size, enum i
 }
 
 // Register RDMA buffer
-inline struct ibv_mr *rdma_buffer_register(struct ibv_pd *pd, void *addr, uint32_t length, enum ibv_access_flags permission) {
+inline struct ibv_mr *rdma_buffer_register(struct ibv_pd *pd, const void *addr, uint32_t length, enum ibv_access_flags permission) {
     struct ibv_mr *mr = NULL;
     if (!pd) {
         rdma_error("Protection domain is NULL, ignoring \n");
         return NULL;
     }
-    mr = ibv_reg_mr(pd, addr, length, permission);
+    mr = ibv_reg_mr(pd, (void*) addr, length, permission);
     if (!mr) {
         rdma_error("Failed to create mr on buffer, errno: %d \n", -errno);
         return NULL;
@@ -81,12 +81,21 @@ inline void rdma_buffer_free(struct ibv_mr *mr) {
 // Deregister RDMA buffer
 inline void rdma_buffer_deregister(struct ibv_mr *mr) {
     if (!mr) {
-        rdma_error("Passed memory region is NULL, ignoring\n");
+        // rdma_error("Passed memory region is NULL, ignoring\n"); // we don't need this
         return;
     }
     debug("Deregistered: %p , len: %u , stag : 0x%x \n", mr->addr, (unsigned int)mr->length, mr->lkey);
     ibv_dereg_mr(mr);
 }
+
+void gc_sock(sock_resources *sock) {
+    if (sock->gc_counter > GC_NUM) {
+        sock->gc_counter = 0;
+        for (size_t i = 0; i < GC_NUM; i++) {
+            rdma_buffer_deregister(sock->gc_container[i]);
+        }
+    }
+};
 
 // Process CM event
 inline int process_rdma_cm_event(struct rdma_event_channel *echannel, enum rdma_cm_event_type expected_event, struct rdma_cm_event **cm_event) {
@@ -123,7 +132,7 @@ inline const char *mapOpcodeToType(enum ibv_wc_opcode opcode) {
         case IBV_WC_RDMA_WRITE:
             return "IBV_WC_RDMA_WRITE";
         case IBV_WC_RDMA_READ:
-            return ANSI_COLOR_BLUE"IBV_WC_RDMA_READ"ANSI_COLOR_RESET;
+            return ANSI_COLOR_BLUE "IBV_WC_RDMA_READ" ANSI_COLOR_RESET;
         case IBV_WC_COMP_SWAP:
             return "IBV_WC_COMP_SWAP";
         case IBV_WC_FETCH_ADD:
@@ -137,7 +146,7 @@ inline const char *mapOpcodeToType(enum ibv_wc_opcode opcode) {
         case IBV_WC_RECV:
             return "IBV_WC_RECV";
         case IBV_WC_RECV_RDMA_WITH_IMM:
-            return ANSI_COLOR_BLUE"IBV_WC_RECV_RDMA_WITH_IMM"ANSI_COLOR_RESET;
+            return ANSI_COLOR_BLUE "IBV_WC_RECV_RDMA_WITH_IMM" ANSI_COLOR_RESET;
     }
 }
 
@@ -179,7 +188,7 @@ inline int process_work_completion_events(struct ibv_comp_channel *comp_channel,
     debug("%d WC are completed \n", total_wc);
     /* Now we check validity and status of I/O work completions */
     for (i = 0; i < total_wc; i++) {
-		debug("%s\n", mapOpcodeToType(wc[i].opcode));
+        debug("%s\n", mapOpcodeToType(wc[i].opcode));
         if (wc[i].status != IBV_WC_SUCCESS) {
             rdma_error("Work completion (WC) has error status: %s at index %d", ibv_wc_status_str(wc[i].status), i);
             /* return negative value */

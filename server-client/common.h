@@ -1,8 +1,8 @@
 /*
  * Copyright [2020] [Animesh Trivedi]
  *
- * This code is part of the Advanced Network Programming (ANP) course
- * at VU Amsterdam.
+ 
+ 
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,33 +30,47 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <time.h>
-#include "../src/all_common.h"
 
 #define PORT 43211
 
 #define SMALL_BUFF (1 << 12)  // 4KiB
 #define LARGE_BUFF (1 << 17)  // 32KiB
 #define MEGABYTE (1 << 20) // 1MB
+#define EIGHT_MEGABYTES (1 << 23) // 8MB
+#define SIXTEEN_MEGABYTES (1 << 24) // 16MB
+#define THIRTY_TWO_MEGABYTES (1 << 25) // 32MB
+#define ONETWOEIGHT_MEGABYTES (1 << 27) // 128MB
+#define TWOFIXESIX_MEGABYTES (1 << 28) // 256MB
+#define FIVEONETWO_MEGABYTES (1 << 29) // 512MB
 #define GIGABYTE (1 << 30) // 1GB
 
-#define NUM_ITERATIONS 20
-#define NUM_TESTS 5
+#define NUM_ITERATIONS 1
+#define NUM_TESTS 100
 
-#define TEST_BUFFER_LENGTH (1 << 20)
+#define TEST_MESSAGE_SIZE (1 << 30)
+
 
 
 
 int get_addr(char *dst, struct sockaddr *addr);
-const int *match_pattern(const unsigned char *buf, int size);
-const int *match_pattern2(const unsigned char *buf, int size);
+const int match_pattern(const unsigned char *buf, int size);
+const int match_pattern2(const unsigned char *buf, int size);
 void write_pattern(char *buf, int size);
 void write_pattern2(char *buf, int size);
 void send_test(int fd);
 void recv_test(int fd);
 
-void send_test_sanity(int fd);
-void recv_test_sanity(int fd);
 
 struct timespec diff(struct timespec start, struct timespec end);
 
+
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_GREEN "\x1b[32m"
+#define ANSI_COLOR_YELLOW "\x1b[33m"
+#define ANSI_COLOR_BLUE "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN "\x1b[36m"
+#define ANSI_COLOR_RESET "\x1b[0m"
+
 #endif  // SIMPLE_SERVER_CLIENT_COMMON_H
+

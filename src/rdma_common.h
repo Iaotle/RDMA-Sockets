@@ -22,7 +22,6 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include "all_common.h"
 /* Error Macro*/
 #define rdma_error(msg, args...)                                               \
     do {                                                                       \
@@ -51,6 +50,11 @@
 /* Default port where the RDMA server is listening */
 #define DEFAULT_RDMA_PORT (20886)
 
+#define GC_NUM 100 // number of buffers to garbagecollect after (TODO maybe make this depend on len)
+
+
+
+
 /*
  * We use attribute so that compiler does not step in and try to pad the structure.
  * We use this structure to exchange information between the server and the client.
@@ -67,6 +71,50 @@ struct __attribute((packed)) rdma_buffer_attr {
         uint32_t remote_stag;
     } stag;
 };
+
+typedef struct sock_resources {
+    /// server stuff
+    /* These are the RDMA resources needed to setup an RDMA connection */
+    /* Event channel, where connection management (cm) related events are relayed */
+    int fd;
+    struct rdma_cm_id *cm_id;
+    struct rdma_event_channel *event_channel;
+    struct ibv_pd *pd;
+    struct ibv_comp_channel *completion_channel;
+    struct ibv_cq *cq;
+    struct ibv_qp *qp;
+
+    /* RDMA memory resources */
+    struct rdma_buffer_attr remote_metadata_attr;
+
+    /* These are memory buffers */
+    struct ibv_mr *metadata_mr, *metadata_mr2, *mr_recv, *mr_send;
+
+	/* Optimization in order to not re-register buffers */
+	const void *last_bufptr_send;
+	size_t last_len_send;
+
+	const void *last_bufptr_recv;
+	size_t last_len_recv;
+	
+
+    struct ibv_mr *gc_container[GC_NUM];
+	int gc_counter;
+
+    struct ibv_mr *send_gc[GC_NUM];
+    struct ibv_mr *recv_gc[GC_NUM];
+    int send_count;
+    int recv_count;
+
+    /// hack stuff...
+    char *destination_noalloc;
+
+    // garbage collection struct?
+
+} sock_resources;
+
+
+void gc_sock(sock_resources *sock);
 
 /* resolves a given destination name to sin_addr */
 int get_addr(char *dst, struct sockaddr *addr);
@@ -104,7 +152,7 @@ void rdma_buffer_free(struct ibv_mr *mr);
  * @length: Length of the buffer
  * @permission: OR of IBV_ACCESS_* permissions as defined for the enum ibv_access_flags
  */
-struct ibv_mr *rdma_buffer_register(struct ibv_pd *pd, void *addr, uint32_t length, enum ibv_access_flags permission);
+struct ibv_mr *rdma_buffer_register(struct ibv_pd *pd, const void *addr, uint32_t length, enum ibv_access_flags permission);
 
 /* Deregisters a previously register memory
  * @mr: Memory region to deregister
@@ -121,5 +169,13 @@ int process_work_completion_events(struct ibv_comp_channel *comp_channel, struct
 
 /* prints some details from the cm id */
 void show_rdma_cmid(struct rdma_cm_id *id);
+
+#define ANSI_COLOR_RED "\x1b[31m"
+#define ANSI_COLOR_GREEN "\x1b[32m"
+#define ANSI_COLOR_YELLOW "\x1b[33m"
+#define ANSI_COLOR_BLUE "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN "\x1b[36m"
+#define ANSI_COLOR_RESET "\x1b[0m"
 
 #endif /* RDMA_COMMON_H */

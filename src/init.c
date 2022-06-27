@@ -1,8 +1,8 @@
 /*
  * Copyright [2020] [Animesh Trivedi]
  *
- * This code is part of the Advanced Network Programming (ANP) course
- * at VU Amsterdam.
+ 
+ 
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "all_common.h"
-#include "anp_netdev.h"
 #include "anpwrapper.h"
-#include "route.h"
 #include "systems_headers.h"
-#include "tap_netdev.h"
-#include "timer.h"
 
 extern char **environ;
 
@@ -32,26 +27,7 @@ extern char **environ;
 #define THREAD_TIMER 1
 #define THREAD_MAX 2
 
-static pthread_t threads[THREAD_MAX];
 
-static void create_thread(pthread_t id, void *(*func)(void *)) {
-    int ret = pthread_create(&threads[id], NULL, func, NULL);
-    if (0 != ret) {
-        printf("thread creation failed %d , errno %d \n", ret, errno);
-        exit(-errno);
-    }
-}
-
-void ctrl_c_handler(int val) {
-    printf("Good bye, cruel world \n");
-    stop = true;
-}
-
-static void init_threads() {
-    // we have two async activities
-    create_thread(THREAD_RX, netdev_rx_loop);
-    create_thread(THREAD_TIMER, timers_start);
-}
 
 void __attribute__((constructor)) _init_anp_netstack() {
     // https://stackoverflow.com/questions/3275015/ld-preload-affects-new-child-even-after-unsetenvld-preload
@@ -68,13 +44,9 @@ void __attribute__((constructor)) _init_anp_netstack() {
 #else
     unsetenv("LD_PRELOAD");
 #endif
-    printf(ANSI_COLOR_BLUE "Hello there, I am ANP networking stack!\n" ANSI_COLOR_RESET);
+    printf(
+        "\x1b[34m"
+        "Hello there, I am ANP networking stack!\n"
+        "\x1b[0m");
     _function_override_init();
-    // this is the external end, at 10.0.0.5
-    // tdev_init();
-    // this is the client end, at 10.0.0.4
-    // client_netdev_init();
-    // insert and init some default routes about, lo, local delivery, and the gateway
-    // route_init();
-    // init_threads();
 }
