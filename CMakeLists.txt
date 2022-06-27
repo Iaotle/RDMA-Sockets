@@ -32,17 +32,7 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_library(anpnetstack SHARED
         src/init.c
 		src/rdma_common.c
-        src/tap_netdev.c
-        src/utilities.c
-        src/anp_netdev.c
-        src/anpwrapper.c
-        src/arp.c
-        src/subuff.c
-        src/route.c
-        src/timer.c
-        src/ip_rx.c
-        src/ip_tx.c
-        src/icmp.c)
+        src/anpwrapper.c)
 
 find_package(Threads)
 find_library(IBVERBS_LIBRARY ibverbs HINTS /home/atr/local/lib)
@@ -65,5 +55,5 @@ install(TARGETS anpnetstack
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_executable(anp_server server-client/tcp_server.c server-client/common.h server-client/common.c)
-add_executable(anp_client server-client/tcp_client.c server-client/common.h server-client/common.c)
+add_executable(anp_server server-client/tcp_server.c server-client/common.c)
+add_executable(anp_client server-client/tcp_client.c server-client/common.c)
