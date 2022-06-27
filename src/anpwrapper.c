@@ -23,7 +23,6 @@
 #include <dlfcn.h>
 
 #include "init.h"
-#include "linklist.h"
 #include "rdma_common.h"
 #include "systems_headers.h"
 
