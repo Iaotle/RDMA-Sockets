@@ -15,9 +15,9 @@
  * limitations under the License.
 */
 
-#ifndef ANPNETSTACK_INIT_H
-#define ANPNETSTACK_INIT_H
+#ifndef RDMANETSTACK_INIT_H
+#define RDMANETSTACK_INIT_H
 
-void _init_anp_netstack();
+void _init_rdma_netstack();
 
-#endif //ANPNETSTACK_INIT_H
+#endif //RDMANETSTACK_INIT_H

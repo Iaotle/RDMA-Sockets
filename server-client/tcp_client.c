@@ -1,8 +1,8 @@
 /*
  * Copyright [2020] [Animesh Trivedi]
  *
- 
- 
+
+
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,14 +35,14 @@ int main(int argc, char** argv) {
     struct sockaddr_in server_addr;
     char debug_buffer[INET_ADDRSTRLEN];
 
-    printf("usage: ./anp_client ip [default: 127.0.0.1] port [default: %d]\n", PORT);
+    // printf("usage: ./rdma_client ip [default: 127.0.0.1] port [default: %d]\n", PORT);
 
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (0 > server_fd) {
         printf("socket creation failed, errno : %d \n", errno);
         return -errno;
     }
-    printf("OK: socket created, fd is %d \n", server_fd);
+    // printf("OK: socket created, fd is %d \n", server_fd);
     bzero(&server_addr, sizeof(server_addr));
     // assign IP, PORT
     server_addr.sin_family = AF_INET;
@@ -72,60 +72,64 @@ int main(int argc, char** argv) {
         printf("Error: connect failed, errno %d \n", errno);
         return errno;
     }
-    inet_ntop(AF_INET, &server_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
-    printf("OK: connected to the server at %s \n", debug_buffer);
+    // inet_ntop(AF_INET, &server_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
+    // printf("OK: connected to the server at %s \n", debug_buffer);
 
-    // SaNITY
-    printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
-    char rx_buffer[TEST_MESSAGE_SIZE];
-    bzero(rx_buffer, TEST_MESSAGE_SIZE);
-    int so_far = 0;
-    while (so_far < TEST_MESSAGE_SIZE) {
-        int ret = recv(server_fd, rx_buffer + so_far, TEST_MESSAGE_SIZE - so_far, 0);  // RECV
-                                                                                        //  printf("recv\n");
-        if (0 > ret) {
-            printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far += ret;
-    }
+    // // SaNITY
+    // printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
+    // char rx_buffer[TEST_MESSAGE_SIZE];
+    // bzero(rx_buffer, TEST_MESSAGE_SIZE);
+    // int so_far = 0;
+    // while (so_far < TEST_MESSAGE_SIZE) {
+    //     int ret = recv(server_fd, rx_buffer + so_far, TEST_MESSAGE_SIZE - so_far, 0);  // RECV
+    //                                                                                    //  printf("recv\n");
+    //     if (0 > ret) {
+    //         printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
+    //         return -ret;
+    //     }
+    //     so_far += ret;
+    // }
 
+    // char tx_buffer[TEST_MESSAGE_SIZE];
+    // write_pattern2(tx_buffer, TEST_MESSAGE_SIZE);
+    // send(server_fd, tx_buffer, TEST_MESSAGE_SIZE, 0);  // SEND
 
-    char tx_buffer[TEST_MESSAGE_SIZE];
-    write_pattern2(tx_buffer, TEST_MESSAGE_SIZE);
-    send(server_fd, tx_buffer, TEST_MESSAGE_SIZE, 0);  // SEND
+    // int count = 0;
+    // while (match_pattern(rx_buffer, TEST_MESSAGE_SIZE) && count <= 10) {
+    //     count++;
+    // };
+    // if (count == 11) {
+    //     printf(ANSI_COLOR_RED "SANITY CHECK FAILED\n" ANSI_COLOR_RESET);
+    //     return -1;
+    // }
 
-	int count = 0;
-    while (match_pattern(rx_buffer, TEST_MESSAGE_SIZE) && count <= 10) {
-        count++;
-    };
-    if (count == 11) {
-        printf(ANSI_COLOR_RED "SANITY CHECK FAILED\n" ANSI_COLOR_RESET);
-        return -1;
-    }
-
-    printf(ANSI_COLOR_GREEN "SaNITY CHECK OK\n" ANSI_COLOR_RESET);
-
-
-
-
-
-
-
+    // printf(ANSI_COLOR_GREEN "SaNITY CHECK OK\n" ANSI_COLOR_RESET);
 
     // printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
-    recv_test(server_fd);
+    int init_size = 2;
+    int num_iter = 100;
+	int sendbuff;
+ 	socklen_t optlen;
+		 optlen = sizeof(sendbuff);
+
+ 	getsockopt(server_fd, SOL_SOCKET, SO_RCVBUF, &sendbuff, &optlen);
+	printf("%d,\n", sendbuff);
+
+
+    for (size_t i = init_size; i <= GIGABYTE; i = (i << 1)) {
+        // printf("\nMessage Size: %d\n", i);
+		if (num_iter > 64 && i > (1 << 20))
+			num_iter = (num_iter >> 1);
+
+		recv_test(server_fd, i, num_iter);
+
+		getsockopt(server_fd, SOL_SOCKET, SO_RCVBUF, &sendbuff, &optlen);
+		printf("%d,\n", sendbuff);
+    }
     // printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
     // send_test(server_fd);
     // printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
     // recv_test(server_fd);
-
-
-
-
-
-
-
 
     // printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
     // char rx_buffer2[TEST_MESSAGE_SIZE];
@@ -144,7 +148,6 @@ int main(int argc, char** argv) {
     // bzero(tx_buffer2, TEST_MESSAGE_SIZE);
     // write_pattern(tx_buffer2, TEST_MESSAGE_SIZE);
     // send(server_fd, tx_buffer2, TEST_MESSAGE_SIZE, 0);  // SEND
-
 
     // count = 0;
     // while (match_pattern2(rx_buffer2, TEST_MESSAGE_SIZE) && count <= 10) {

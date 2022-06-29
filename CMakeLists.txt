@@ -1,8 +1,6 @@
 #
 # Copyright [2020] [Animesh Trivedi]
 #
-# This code is part of the Advanced Network Programming (ANP) course
-# at VU Amsterdam.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +14,7 @@
 #
 
 cmake_minimum_required(VERSION 3.10)
-project(anpnetstack VERSION 1.0.2 DESCRIPTION "ANP networking stack")
+project(rdmanetstack VERSION 1.1.0 DESCRIPTION "RDMA networking stack")
 include(GNUInstallDirs)
 
 # -g is needed to print the debugging symbols in the backtrace, you can later remove it with -O2
@@ -29,29 +27,29 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_SOURCE_DIR}/lib/)
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/build/)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
-add_library(anpnetstack SHARED
+add_library(rdmanetstack SHARED
         src/init.c
 		src/rdma_common.c
-        src/anpwrapper.c)
+        src/rdmawrapper.c)
 
 find_package(Threads)
 find_library(IBVERBS_LIBRARY ibverbs HINTS /home/atr/local/lib)
 find_library(RDMACM_LIBRARY rdmacm HINTS /home/atr/local/lib)
-target_link_libraries(anpnetstack ${CMAKE_THREAD_LIBS_INIT} ${IBVERBS_LIBRARY} ${RDMACM_LIBRARY})
-target_link_libraries(anpnetstack dl)
+target_link_libraries(rdmanetstack ${CMAKE_THREAD_LIBS_INIT} ${IBVERBS_LIBRARY} ${RDMACM_LIBRARY})
+target_link_libraries(rdmanetstack dl)
 
 link_libraries(pthread ${IBVERBS_LIBRARY} ${RDMACM_LIBRARY})
 
-set_target_properties(anpnetstack PROPERTIES
+set_target_properties(rdmanetstack PROPERTIES
         VERSION ${PROJECT_VERSION}
         SOVERSION 1
-        PUBLIC_HEADER include/anpnetstack.h)
+        PUBLIC_HEADER include/rdmanetstack.h)
 
-target_include_directories(anpnetstack PRIVATE src)
-target_include_directories(anpnetstack PRIVATE include)
+target_include_directories(rdmanetstack PRIVATE src)
+target_include_directories(rdmanetstack PRIVATE include)
 
 
-install(TARGETS anpnetstack
+install(TARGETS rdmanetstack
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 

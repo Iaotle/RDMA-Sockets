@@ -10,6 +10,11 @@
 		"algorithm": "c",
 		"all_common.h": "c",
 		"errno.h": "c",
-		"config.h": "c"
+		"config.h": "c",
+		"array": "c",
+		"string_view": "c",
+		"initializer_list": "c",
+		"utility": "c",
+		"rdma_cma.h": "c"
 	}
 }

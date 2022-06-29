@@ -33,6 +33,8 @@
 
 #define PORT 43211
 
+#define KILOBYTE (1 << 10) // 1KiB
+#define TWO_KILO (1 << 11) // 2KiB
 #define SMALL_BUFF (1 << 12)  // 4KiB
 #define LARGE_BUFF (1 << 17)  // 32KiB
 #define MEGABYTE (1 << 20) // 1MB
@@ -44,8 +46,7 @@
 #define FIVEONETWO_MEGABYTES (1 << 29) // 512MB
 #define GIGABYTE (1 << 30) // 1GB
 
-#define NUM_ITERATIONS 1
-#define NUM_TESTS 100
+#define NUM_TESTS 1
 
 #define TEST_MESSAGE_SIZE (1 << 30)
 
@@ -57,8 +58,8 @@ const int match_pattern(const unsigned char *buf, int size);
 const int match_pattern2(const unsigned char *buf, int size);
 void write_pattern(char *buf, int size);
 void write_pattern2(char *buf, int size);
-void send_test(int fd);
-void recv_test(int fd);
+void send_test(int fd, int size, int num_iter);
+void recv_test(int fd, int size, int num_iter);
 
 
 struct timespec diff(struct timespec start, struct timespec end);

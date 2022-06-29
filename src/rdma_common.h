@@ -101,16 +101,6 @@ typedef struct sock_resources {
     struct ibv_mr *gc_container[GC_NUM];
 	int gc_counter;
 
-    struct ibv_mr *send_gc[GC_NUM];
-    struct ibv_mr *recv_gc[GC_NUM];
-    int send_count;
-    int recv_count;
-
-    /// hack stuff...
-    char *destination_noalloc;
-
-    // garbage collection struct?
-
 } sock_resources;
 
 

@@ -18,7 +18,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include "anpwrapper.h"
+#include "rdmawrapper.h"
 #include "systems_headers.h"
 
 extern char **environ;
@@ -29,11 +29,11 @@ extern char **environ;
 
 
 
-void __attribute__((constructor)) _init_anp_netstack() {
+void __attribute__((constructor)) _init_rdma_netstack() {
     // https://stackoverflow.com/questions/3275015/ld-preload-affects-new-child-even-after-unsetenvld-preload
     //  uff, what a mess. So, if there are exec (which is in the system call, it fork bombs, hence it is
     //  quite important to unset thr LD_PRELOAD once we are here
-#ifdef ANP_DEBUG
+#ifdef RDMA_DEBUG
     int i;
     printf("Unsetting LD_PRELOAD: %x\n", unsetenv("LD_PRELOAD"));
     printf("LD_PRELOAD: \"%s\"\n", getenv("LD_PRELOAD"));
@@ -46,7 +46,7 @@ void __attribute__((constructor)) _init_anp_netstack() {
 #endif
     printf(
         "\x1b[34m"
-        "Hello there, I am ANP networking stack!\n"
+        "RDMA networking stack loaded\n"
         "\x1b[0m");
     _function_override_init();
 }

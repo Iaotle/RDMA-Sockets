@@ -15,8 +15,8 @@
  * limitations under the License.
 */
 
-#ifndef ANP_SYSTEMS_HEADERS_H
-#define ANP_SYSTEMS_HEADERS_H
+#ifndef RDMA_SYSTEMS_HEADERS_H
+#define RDMA_SYSTEMS_HEADERS_H
 
 #define _GNU_SOURCE
 
@@ -58,4 +58,4 @@
 
 #define gettid() syscall(SYS_gettid)
 
-#endif //ANP_SYSTEMS_HEADERS_H
+#endif //RDMA_SYSTEMS_HEADERS_H

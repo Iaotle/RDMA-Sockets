@@ -93,42 +93,55 @@ struct timespec diff(struct timespec start, struct timespec end) {
     return temp;
 }
 
-int run_test(int fd, void (*function)(int fd, char send_buffer[TEST_MESSAGE_SIZE]),
-             char send_buffer[TEST_MESSAGE_SIZE]) {
+int run_test(int fd, void (*function)(int fd, char* buffer, int size),
+             char* buffer, int size, int num_iter) {
     double avg_latency = 0;
     double avg_bw = 0;
-
+	struct timespec timediff;
     struct timespec start, end;
+	// printf("[ # size %d\n", size);
+	if (size <= MEGABYTE)
+		function(fd, buffer, size); // warmup
 
     for (int j = 0; j < NUM_TESTS; j++) {
         clock_gettime(CLOCK_MONOTONIC_RAW, &start);
         clock_gettime(CLOCK_MONOTONIC_RAW, &end);
 
-        for (int x = 0; x < NUM_ITERATIONS; x++) {
-            function(fd, send_buffer);
+        for (int x = 0; x < num_iter; x++) {
+            function(fd, buffer, size);
         }
         clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+        timediff = diff(start, end);
 
-        struct timespec timediff = diff(start, end);
+		// // basically just loop until 15s have passed for the resource usage tests
+		// while (timediff.tv_sec < 15) {
+        //     function(fd, buffer, size);
+        // 	clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+		// 	timediff = diff(start, end);
+        // }
+
         double time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
-        double Bps = (double)TEST_MESSAGE_SIZE * (double)NUM_ITERATIONS / time_num;  // BYTES per second
-        double Gbps = Bps / GIGABYTE * 8;                                             // not metric, base2
-        Gbps = Bps * 8 / 1000000000.0;
+        double bps = (double)size * (double)num_iter / time_num;  // bits per second
+        double Gbps = bps / GIGABYTE * 8;                                             // not metric, base2
+        Gbps = bps * 8 / 1000000000.0;
         // printf("Run took: %f seconds, Gbps = " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET, time_num, Gbps);
-        printf(ANSI_COLOR_CYAN "%f" ANSI_COLOR_RESET, Gbps);
+        // printf(ANSI_COLOR_CYAN "%f,\n" ANSI_COLOR_RESET, Gbps);
         avg_bw += Gbps;
-        // printf("Latency per call: " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET, time_num / (double)NUM_ITERATIONS);
-        printf(ANSI_COLOR_CYAN ",%f\n" ANSI_COLOR_RESET, time_num / (double)NUM_ITERATIONS);
+        // printf("Latency per call: " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET, time_num / (double)num_iter);
+        // printf(ANSI_COLOR_CYAN "%f,\n" ANSI_COLOR_RESET, time_num / (double)num_iter);
         avg_latency += time_num;
+		// usleep(10000);
     }
-    printf("Averages:\nGbps = " ANSI_COLOR_CYAN "%f" ANSI_COLOR_RESET ", Latency " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET,
-           avg_bw / (double)(NUM_TESTS), avg_latency / ((double)NUM_TESTS * (double)NUM_ITERATIONS));
+	// printf("],\n");
+
+    // printf("Averages:\nGbps = " ANSI_COLOR_CYAN "%f" ANSI_COLOR_RESET ", Latency " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET,
+    //        avg_bw / (double)(NUM_TESTS), avg_latency / ((double)NUM_TESTS * (double)num_iter));
 }
 
-void send_func(int fd, char send_buffer[TEST_MESSAGE_SIZE]) {
+void send_func(int fd, char* send_buffer, int size) {
     int so_far = 0;
-    while (so_far < TEST_MESSAGE_SIZE) {
-        int ret = send(fd, send_buffer + so_far, TEST_MESSAGE_SIZE - so_far, 0);
+    while (so_far < size) {
+        int ret = send(fd, send_buffer + so_far, size - so_far, 0);
         if (0 > ret) {
             printf("Error: send failed with ret %d and errno %d \n", ret, errno);
         }
@@ -136,10 +149,10 @@ void send_func(int fd, char send_buffer[TEST_MESSAGE_SIZE]) {
     }
 }
 
-void recv_func(int fd, char receive_buffer[TEST_MESSAGE_SIZE]) {
+void recv_func(int fd,  char* receive_buffer, int size) {
     int so_far = 0;
-    while (so_far < TEST_MESSAGE_SIZE) {
-        int ret = recv(fd, receive_buffer + so_far, TEST_MESSAGE_SIZE - so_far, 0);
+    while (so_far < size) {
+        int ret = recv(fd, receive_buffer + so_far, size - so_far, 0);
         if (0 > ret) {
             printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
         }
@@ -148,12 +161,12 @@ void recv_func(int fd, char receive_buffer[TEST_MESSAGE_SIZE]) {
     // match_pattern(receive_buffer, TEST_BUFFER_LENGTH);
 }
 
-void send_test(int fd) {
-    char send_buffer[TEST_MESSAGE_SIZE];
-    run_test(fd, send_func, send_buffer);
+void send_test(int fd, int size, int num_iter) {
+    char send_buffer[size];
+    run_test(fd, send_func, send_buffer, size, num_iter);
 }
 
-void recv_test(int fd) {
-    char send_buffer[TEST_MESSAGE_SIZE];
-    run_test(fd, recv_func, send_buffer);
+void recv_test(int fd, int size, int num_iter) {
+    char send_buffer[size];
+    run_test(fd, recv_func, send_buffer, size, num_iter);
 }
