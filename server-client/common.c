@@ -33,6 +33,22 @@ int get_addr(char *dst, struct sockaddr *addr) {
     return ret;
 }
 
+// pretty prints message size
+char* msgSize(int nbytes) {
+    char* str = (char*) malloc(sizeof(char) * 7);
+
+    if (nbytes < KILOBYTE)
+        sprintf(str, "%d B\0", nbytes);
+    else if (nbytes < MEGABYTE)
+        sprintf(str, "%d KB\0", nbytes / KILOBYTE);
+    else if (nbytes < GIGABYTE)
+        sprintf(str, "%d MB\0", nbytes / MEGABYTE);
+    else
+        sprintf(str, "%d GB\0", nbytes / GIGABYTE);
+
+    return str;
+}
+
 void write_pattern(char *buf, int size) {
     // write a pattern
     unsigned char start = PATTERN_START;
@@ -74,7 +90,6 @@ const int match_pattern2(const unsigned char *buf, int size) {
     return 0;
 }
 
-
 // Time diff function copied from https://stackoverflow.com/questions/17705786/getting-negative-values-using-clock-gettime
 struct timespec diff(struct timespec start, struct timespec end) {
     struct timespec temp;
@@ -89,13 +104,12 @@ struct timespec diff(struct timespec start, struct timespec end) {
     return temp;
 }
 
-int run_test(int fd, void (*function)(int fd, char* buffer, int size),
-             char* buffer, int size, int num_iter) {
+int run_test(int fd, void (*function)(int fd, char *buffer, int size), char *buffer, int size, int num_iter) {
     double avg_latency = 0;
     double avg_bw = 0;
-	struct timespec timediff;
+    struct timespec timediff;
     struct timespec start, end;
-	// function(fd, buffer, size); // warmup
+    // function(fd, buffer, size); // warmup
 
     for (int j = 0; j < NUM_TESTS; j++) {
         clock_gettime(CLOCK_MONOTONIC_RAW, &start);
@@ -109,9 +123,9 @@ int run_test(int fd, void (*function)(int fd, char* buffer, int size),
 
         double time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
         double bps = (double)size * (double)num_iter / time_num;  // bits per second
-        double Gbps = bps / GIGABYTE * 8;                                             // not metric, base2
+        double Gbps = bps / GIGABYTE * 8;                         // not metric, base2
         Gbps = bps * 8 / 1000000000.0;
-        printf("Run took: %f seconds, Gbps = " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET, time_num, Gbps);
+        // printf("Run took: %f seconds, Gbps = " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET, time_num, Gbps);
         // printf(ANSI_COLOR_CYAN "%f,\n" ANSI_COLOR_RESET, Gbps);
         avg_bw += Gbps;
         // printf("Latency per call: " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET, time_num / (double)num_iter);
@@ -123,7 +137,7 @@ int run_test(int fd, void (*function)(int fd, char* buffer, int size),
            avg_bw / (double)(NUM_TESTS), avg_latency / ((double)NUM_TESTS * (double)num_iter));
 }
 
-void send_func(int fd, char* send_buffer, int size) {
+void send_func(int fd, char *send_buffer, int size) {
     int so_far = 0;
     while (so_far < size) {
         int ret = send(fd, send_buffer + so_far, size - so_far, 0);
@@ -134,7 +148,7 @@ void send_func(int fd, char* send_buffer, int size) {
     }
 }
 
-void recv_func(int fd,  char* receive_buffer, int size) {
+void recv_func(int fd, char *receive_buffer, int size) {
     int so_far = 0;
     while (so_far < size) {
         int ret = recv(fd, receive_buffer + so_far, size - so_far, 0);
@@ -146,13 +160,17 @@ void recv_func(int fd,  char* receive_buffer, int size) {
 }
 
 void send_test(int fd, int size, int num_iter) {
-	printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
+	char* str = msgSize(size);
+    printf(ANSI_COLOR_YELLOW "RUNNING %s SEND TEST:\n" ANSI_COLOR_RESET, str);
+	free(str);
     char send_buffer[size];
     run_test(fd, send_func, send_buffer, size, num_iter);
 }
 
 void recv_test(int fd, int size, int num_iter) {
-	printf(ANSI_COLOR_YELLOW "RUNNING RECV TEST:\n" ANSI_COLOR_RESET);
+	char* str = msgSize(size);
+    printf(ANSI_COLOR_YELLOW "RUNNING %s RECV TEST:\n" ANSI_COLOR_RESET, str);
+	free(str);
     char send_buffer[size];
     run_test(fd, recv_func, send_buffer, size, num_iter);
 }

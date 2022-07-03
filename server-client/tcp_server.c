@@ -29,11 +29,44 @@
 #include "common.h"
 
 
+int sanitycheck(int fd) {
+	printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
+    char tx_buffer[TEST_MESSAGE_SIZE];
+    write_pattern(tx_buffer, TEST_MESSAGE_SIZE);
+    send(fd, tx_buffer, TEST_MESSAGE_SIZE, 0);  // SEND
+
+    bzero(tx_buffer, TEST_MESSAGE_SIZE);
+    int so_far = 0;
+    while (so_far < TEST_MESSAGE_SIZE) {
+        int ret = recv(fd, tx_buffer + so_far, TEST_MESSAGE_SIZE - so_far, 0);  // RECV
+        if (0 > ret) {
+            printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
+            return -ret;
+        }
+        so_far += ret;
+    }
+
+    int count = 0;
+    while (match_pattern2(tx_buffer, TEST_MESSAGE_SIZE) && count <= 10) {
+        count++;
+    };
+    if (count == 11) {
+        printf(ANSI_COLOR_RED "SANITY CHECK FAILED\n" ANSI_COLOR_RESET);
+        return -1;
+    }
+
+    printf(ANSI_COLOR_GREEN "SaNITY CHECK OK\n" ANSI_COLOR_RESET);
+}
+
 int main(int argc, char** argv) {
     int listen_fd, client_fd, len = 0, ret = -1;
     int optval = 1;
     struct sockaddr_in server_addr, client_addr;
     char debug_buffer[INET_ADDRSTRLEN];
+
+	int init_size = INIT_SIZE;
+    int num_iter = NUM_ITERATIONS;
+
 
     // create the listening socket
     listen_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -101,92 +134,19 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &client_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("new incoming connection from %s \n", debug_buffer);
 
-    // // SaNITY
-    printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
-    char tx_buffer[TEST_MESSAGE_SIZE];
-    write_pattern(tx_buffer, TEST_MESSAGE_SIZE);
-    send(client_fd, tx_buffer, TEST_MESSAGE_SIZE, 0);  // SEND
 
-    char rx_buffer[TEST_MESSAGE_SIZE];
-    bzero(rx_buffer, TEST_MESSAGE_SIZE);
-    int so_far = 0;
-    while (so_far < TEST_MESSAGE_SIZE) {
-        int ret = recv(client_fd, rx_buffer + so_far, TEST_MESSAGE_SIZE - so_far, 0);  // RECV
-        // printf("recv\n");
-        if (0 > ret) {
-            printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far += ret;
+	if (!sanitycheck(client_fd)) {
+		exit(-1);
+	}
+
+    for (size_t i = init_size; i <= GIGABYTE; i = (i << 1)) {
+		send_test(client_fd, i, num_iter);
+        sleep(1);
     }
 
-    int count = 0;
-    while (match_pattern2(rx_buffer, TEST_MESSAGE_SIZE) && count <= 10) {
-        count++;
-    };
-    if (count == 11) {
-        printf(ANSI_COLOR_RED "SANITY CHECK FAILED\n" ANSI_COLOR_RESET);
-        return -1;
-    }
-
-    printf(ANSI_COLOR_GREEN "SaNITY CHECK OK\n" ANSI_COLOR_RESET);
-
-    // printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
-
-    // printf("buffer size %d\n", sendbuff);
-    // // printf(ANSI_COLOR_YELLOW "RUNNING RECEIVE TEST:\n" ANSI_COLOR_RESET);
-    // recv_test(client_fd);
-    // printf(ANSI_COLOR_YELLOW "RUNNING SEND TEST:\n" ANSI_COLOR_RESET);
-
-    // int init_size = INIT_SIZE;
-    // int num_iter = NUM_ITERATIONS;
-	// int sendbuff;
- 	// socklen_t optlen;
-	// optlen = sizeof(sendbuff);
-
- 	// // getsockopt(client_fd, SOL_SOCKET, SO_SNDBUF, &sendbuff, &optlen);
-	// // printf("%d,\n", sendbuff);
-
-    // for (size_t i = init_size; i <= GIGABYTE; i = (i << 1)) {
-    //     // printf("%d,\n", i);
-    //     if (num_iter > 64 && i > (1 << 20))
-	// 		num_iter = (num_iter >> 1);
-	// 	send_test(client_fd, i, num_iter);
-
-	// 	// getsockopt(client_fd, SOL_SOCKET, SO_SNDBUF, &sendbuff, &optlen);
-	// 	// printf("%d,\n", sendbuff);
-
-    //     sleep(1);
-    // }
-
-    printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
-    char tx_buffer2[TEST_MESSAGE_SIZE];
-    write_pattern2(tx_buffer2, TEST_MESSAGE_SIZE);
-    send(client_fd, tx_buffer2, TEST_MESSAGE_SIZE, 0);  // SEND
-
-    char rx_buffer2[TEST_MESSAGE_SIZE];
-    bzero(rx_buffer2, TEST_MESSAGE_SIZE);
-    so_far = 0;
-    while (so_far < TEST_MESSAGE_SIZE) {
-        int ret = recv(client_fd, rx_buffer2 + so_far, TEST_MESSAGE_SIZE - so_far, 0);  // RECV
-        // printf("recv\n");
-        if (0 > ret) {
-            printf("Error: recv failed with ret %d and errno %d \n", ret, errno);
-            return -ret;
-        }
-        so_far += ret;
-    }
-    count = 0;
-    while (match_pattern(rx_buffer2, TEST_MESSAGE_SIZE) && count <= 10) {
-        count++;
-    };
-    if (count == 11) {
-        printf(ANSI_COLOR_RED "SANITY CHECK FAILED\n" ANSI_COLOR_RESET);
-        return -1;
-    }
-
-    printf(ANSI_COLOR_GREEN "SaNITY CHECK OK\n" ANSI_COLOR_RESET);
-    // getsockopt(client_fd, SOL_SOCKET, SO_SNDBUF, &sendbuff, &optlen);
+	if (!sanitycheck(client_fd)) {
+		exit(-1);
+	}
 
     // close the two fds
     ret = close(client_fd);
@@ -199,6 +159,6 @@ int main(int argc, char** argv) {
         printf("Error: server listen shutdown was not clean , ret %d errno %d \n ", ret, errno);
         return -ret;
     }
-    // printf("OK: server and client sockets closed\n");
+    printf("OK: server and client sockets closed\n");
     return 0;
 }
