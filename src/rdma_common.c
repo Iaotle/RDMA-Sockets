@@ -3,21 +3,10 @@
  *
  * Authors: Animesh Trivedi
  *          atrivedi@apache.org
+ * Modified by Vadim Isakov
  */
 
 #include "rdma_common.h"
-
-// Unused
-void show_rdma_cmid(struct rdma_cm_id *id) {
-    if (!id) {
-        rdma_error("Passed ptr is NULL\n");
-        return;
-    }
-    debug("RDMA cm id at %p \n", id);
-    if (id->verbs && id->verbs->device) debug("dev_ctx: %p (device name: %s) \n", id->verbs, id->verbs->device->name);
-    if (id->channel) debug("cm event channel %p\n", id->channel);
-    debug("QP: %p, port_space %x, port_num %u \n", id->qp, id->ps, id->port_num);
-}
 
 // Debug info about buffer
 inline void show_rdma_buffer_attr(struct rdma_buffer_attr *attr) {
@@ -57,7 +46,7 @@ inline struct ibv_mr *rdma_buffer_register(struct ibv_pd *pd, const void *addr, 
         rdma_error("Protection domain is NULL, ignoring \n");
         return NULL;
     }
-    mr = ibv_reg_mr(pd, (void*) addr, length, permission);
+    mr = ibv_reg_mr(pd, (void *)addr, length, permission);
     if (!mr) {
         rdma_error("Failed to create mr on buffer, errno: %d \n", -errno);
         return NULL;
@@ -88,7 +77,7 @@ inline void rdma_buffer_deregister(struct ibv_mr *mr) {
     ibv_dereg_mr(mr);
 }
 
-void gc_sock(sock_resources *sock) {
+void gc_sock(sock *sock) {
     if (sock->gc_counter > GC_NUM) {
         sock->gc_counter = 0;
         for (size_t i = 0; i < GC_NUM; i++) {
@@ -150,6 +139,55 @@ inline const char *mapOpcodeToType(enum ibv_wc_opcode opcode) {
     }
 }
 
+inline const char *mapStatusToType(enum ibv_wc_status status) {
+    switch (status) {
+        case IBV_WC_SUCCESS:
+            return "IBV_WC_SUCCESS";
+        case IBV_WC_LOC_LEN_ERR:
+            return "IBV_WC_LOC_LEN_ERR";
+        case IBV_WC_LOC_QP_OP_ERR:
+            return "IBV_WC_LOC_QP_OP_ERR";
+        case IBV_WC_LOC_EEC_OP_ERR:
+            return "IBV_WC_LOC_EEC_OP_ERR";
+        case IBV_WC_LOC_PROT_ERR:
+            return "IBV_WC_LOC_PROT_ERR";
+        case IBV_WC_WR_FLUSH_ERR:
+            return "IBV_WC_WR_FLUSH_ERR";
+        case IBV_WC_MW_BIND_ERR:
+            return "IBV_WC_MW_BIND_ERR";
+        case IBV_WC_BAD_RESP_ERR:
+            return "IBV_WC_BAD_RESP_ERR";
+        case IBV_WC_LOC_ACCESS_ERR:
+            return "IBV_WC_LOC_ACCESS_ERR";
+        case IBV_WC_REM_INV_REQ_ERR:
+            return "IBV_WC_REM_INV_REQ_ERR";
+        case IBV_WC_REM_ACCESS_ERR:
+            return "IBV_WC_REM_ACCESS_ERR";
+        case IBV_WC_REM_OP_ERR:
+            return "IBV_WC_REM_OP_ERR";
+        case IBV_WC_RETRY_EXC_ERR:
+            return "IBV_WC_RETRY_EXC_ERR";
+        case IBV_WC_RNR_RETRY_EXC_ERR:
+            return "IBV_WC_RNR_RETRY_EXC_ERR";
+        case IBV_WC_LOC_RDD_VIOL_ERR:
+            return "IBV_WC_LOC_RDD_VIOL_ERR";
+        case IBV_WC_REM_INV_RD_REQ_ERR:
+            return "IBV_WC_REM_INV_RD_REQ_ERR";
+        case IBV_WC_REM_ABORT_ERR:
+            return "IBV_WC_REM_ABORT_ERR";
+        case IBV_WC_INV_EECN_ERR:
+            return "IBV_WC_INV_EECN_ERR";
+        case IBV_WC_INV_EEC_STATE_ERR:
+            return "IBV_WC_INV_EEC_STATE_ERR";
+        case IBV_WC_FATAL_ERR:
+            return "IBV_WC_FATAL_ERR";
+        case IBV_WC_RESP_TIMEOUT_ERR:
+            return "IBV_WC_RESP_TIMEOUT_ERR";
+        case IBV_WC_GENERAL_ERR:
+            return "IBV_WC_GENERAL_ERR";
+    }
+}
+
 // Process WC (work completion) event
 inline int process_work_completion_events(struct ibv_comp_channel *comp_channel, struct ibv_wc *wc, int max_wc) {
     struct ibv_cq *cq_ptr = NULL;
@@ -184,8 +222,8 @@ inline int process_work_completion_events(struct ibv_comp_channel *comp_channel,
             return ret;
         }
         total_wc += ret;
-    } while (total_wc < max_wc);
-    debug("%d WC are completed \n", total_wc);
+    } while (total_wc < max_wc);  // haha
+    debug("%d WC completed \n", total_wc);
     /* Now we check validity and status of I/O work completions */
     for (i = 0; i < total_wc; i++) {
         debug("%s\n", mapOpcodeToType(wc[i].opcode));

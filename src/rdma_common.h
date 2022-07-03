@@ -4,6 +4,7 @@
  *
  * Author: Animesh Trivedi
  *          atrivedi@apache.org
+ * Modified by Vadim Isakov
  *
  */
 
@@ -50,10 +51,7 @@
 /* Default port where the RDMA server is listening */
 #define DEFAULT_RDMA_PORT (20886)
 
-#define GC_NUM 100 // number of buffers to garbagecollect after (TODO maybe make this depend on len)
-
-
-
+#define GC_NUM 10000  // number of buffers to garbagecollect after
 
 /*
  * We use attribute so that compiler does not step in and try to pad the structure.
@@ -72,7 +70,7 @@ struct __attribute((packed)) rdma_buffer_attr {
     } stag;
 };
 
-typedef struct sock_resources {
+typedef struct sock {
     /// server stuff
     /* These are the RDMA resources needed to setup an RDMA connection */
     /* Event channel, where connection management (cm) related events are relayed */
@@ -90,21 +88,23 @@ typedef struct sock_resources {
     /* These are memory buffers */
     struct ibv_mr *metadata_mr, *metadata_mr2, *mr_recv, *mr_send;
 
-	/* Optimization in order to not re-register buffers */
-	const void *last_bufptr_send;
-	size_t last_len_send;
+    /* Optimization in order to not re-register buffers */
+    const void *last_bufptr_send;
+    size_t last_len_send;
 
-	const void *last_bufptr_recv;
-	size_t last_len_recv;
-	
+    const void *last_bufptr_recv;
+    size_t last_len_recv;
 
     struct ibv_mr *gc_container[GC_NUM];
-	int gc_counter;
+    int gc_counter;
 
-} sock_resources;
+} sock;
 
+sock fds[256];
 
-void gc_sock(sock_resources *sock);
+void gc_sock(sock *sock);
+
+sock *find_sock(int fd);
 
 /* resolves a given destination name to sin_addr */
 int get_addr(char *dst, struct sockaddr *addr);

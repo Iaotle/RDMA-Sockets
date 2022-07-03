@@ -15,6 +15,24 @@
 		"string_view": "c",
 		"initializer_list": "c",
 		"utility": "c",
-		"rdma_cma.h": "c"
-	}
+		"rdma_cma.h": "c",
+		"tuple": "c",
+		"linkedlist.h": "c",
+		"socklist.h": "c",
+		"string": "c",
+		"*.tcc": "c",
+		"vector": "c",
+		"functional": "c",
+		"iomanip": "c",
+		"istream": "c",
+		"limits": "c",
+		"ostream": "c",
+		"ratio": "c",
+		"sstream": "c",
+		"streambuf": "c",
+		"exception": "c",
+		"thread": "c",
+		"unordered_map": "c"
+	},
+	"C_Cpp.errorSquiggles": "Disabled"
 }

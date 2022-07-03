@@ -30,6 +30,7 @@ set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 add_library(rdmanetstack SHARED
         src/init.c
 		src/rdma_common.c
+		src/socklist.c
         src/rdmawrapper.c)
 
 find_package(Threads)
@@ -53,5 +54,5 @@ install(TARGETS rdmanetstack
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_executable(rdma_server server-client/tcp_server.c server-client/common.c)
-add_executable(rdma_client server-client/tcp_client.c server-client/common.c)
+add_executable(tcp_server server-client/tcp_server.c server-client/common.c)
+add_executable(tcp_client server-client/tcp_client.c server-client/common.c)

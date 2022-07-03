@@ -1,8 +1,7 @@
 /*
  * Copyright [2020] [Animesh Trivedi]
  *
- 
- 
+ * Modified by Vadim Isakov
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,9 +45,11 @@
 #define FIVEONETWO_MEGABYTES (1 << 29) // 512MB
 #define GIGABYTE (1 << 30) // 1GB
 
-#define NUM_TESTS 1
+#define NUM_TESTS 10
+#define NUM_ITERATIONS 100
+#define INIT_SIZE 2
 
-#define TEST_MESSAGE_SIZE (1 << 30)
+#define TEST_MESSAGE_SIZE GIGABYTE
 
 
 
