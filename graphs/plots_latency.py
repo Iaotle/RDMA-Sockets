@@ -6028,27 +6028,18 @@ for i in range (1, len(rdma_avg)):
     print(rdma_avg[i]/pure_rdma_avg[i])
 
 
-print(min(min(rdma)));
 
 bp = ax.boxplot(tcp, sym='bx')
-# bx = fig.add_subplot(211)
 cp = ax.boxplot(rdma, sym='orange')
-# x-axis labels
 
 ax.set_xticklabels(X * 2)
-# bx.set_xticklabels(X)
-# plt.xticks(X_axis, X)
 plt.xlabel("Message size (Bytes)")
 plt.ylabel("Latency (us), log scale")
-# plt.title("Latency vs Message size")
 plt.legend()
 plt.yscale("log")
 plt.xticks(rotation=60)
-# plt.yticks([1, 10, 100)
 
 #
-# for i in range (len(rdma_avg)):
-# show plot
 plt.savefig('latency_plot.pdf', bbox_inches='tight')
 
 plt.show()

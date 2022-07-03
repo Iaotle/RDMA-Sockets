@@ -5346,9 +5346,6 @@ X = ['2B', '4B', '8B', '16B', '32B', '64B', '128B', '256B', '512B', '1KB', '2KB'
      '64KB', '128KB', '256KB', '512KB', '1MB', '2MB', '4MB', '8MB', '16MB', '32MB', '64MB', '128MB', '256MB', '512MB',
      '1GB']
 X_axis = np.arange(1, len(X) + 1)
-# plt.errorbar(X_axis - 0.2, tcp, 0.4, label='TCP')
-# plt.errorbar(X_axis + 0.2, rdma, 0.4, label='RDMA')
-#
 tcp_avg = []
 rdma_avg = []
 for i in range(len(tcp)):
@@ -5359,23 +5356,15 @@ for i in range(len(rdma)):
 numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
            30]
 
-print(rdma_avg)
 
 bp = ax.plot(X, tcp_avg, label='Linux Socket', linewidth=3)
 cp = ax.plot(X, rdma_avg, label='RDMA Socket', linewidth=3)
 
-# dp = ax.plot(numbers, pure_rdma_avg, label='RDMA Write', linewidth=3)
 
 plt.xticks(rotation=60)
 plt.xlabel("Message size (Bytes)")
 plt.ylabel("CPU Usage (%)")
-# plt.title("CPU Usage vs Message size")
 plt.legend()
-# plt.yscale("log")
-#
-# for i in range (len(rdma)):
-#     print(rdma[i] / tcp[i])
-# show plot
 plt.savefig('cpu_plot.pdf', bbox_inches='tight')
 
 plt.show()

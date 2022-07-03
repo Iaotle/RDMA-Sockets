@@ -6128,11 +6128,6 @@ X = ['2B', '4B', '8B', '16B', '32B', '64B', '128B', '256B', '512B', '1KB', '2KB'
      '1GB']
 X_axis = np.arange(1, len(X) + 1)
 
-# plt.errorbar(X_axis - 0.2, tcp, 0.4, label='TCP')
-# plt.errorbar(X_axis + 0.2, rdma, 0.4, label='RDMA')
-
-
-#
 tcp_avg = []
 rdma_avg = []
 for i in range(len(tcp)):
@@ -6152,24 +6147,15 @@ dp = ax.plot(numbers, pure_rdma_avg, label='RDMA Write', linewidth=3)
 
 bp = ax.boxplot(tcp, sym='bx')
 cp = ax.boxplot(rdma, sym='orange')
-# x-axis labels
 
 print( rdma_avg[29])
 
 
 ax.set_xticklabels(X * 2)
 plt.xticks(rotation=60)
-# bx.set_xticklabels(X)
-# plt.xticks(X_axis, X)
 plt.xlabel("Message size (Bytes)")
 plt.ylabel("Bandwidth (Gbps)")
-# plt.title("Bandwidth vs Message size")
 plt.legend()
-# plt.yscale("log")
-#
-# for i in range (len(rdma)):
-#     print(rdma[i] / tcp[i])
-# show plot
 plt.savefig('bw_plot.pdf', bbox_inches='tight')
 
 plt.show()
