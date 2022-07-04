@@ -7,7 +7,7 @@ Benchmark parameters can be customized in `server-client/copmmon.h`
 Parameters:
 
 | Parameter Name | Default Value | Parameter Function |
-| -------------- | ------------------ |
+| -------------- | ------------- | ------------------ |
 | NUM_TESTS      | 100 | Runs this many tests for each message size from INIT_SIZE to MAX_SIZE |
 | NUM_ITERATIONS | 100 | Runs this many iterations of send/recv per test |
 | INIT_SIZE | 2 | Initial message size to start testing |
