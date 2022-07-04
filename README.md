@@ -2,9 +2,18 @@
 This is the code for my RDMA Sockets Bachelors' Thesis.
 Uses the call hijacking framework created by Animesh and Lin.
 
-Benchmark parameters can be customized in `server-client/copmmon.h`
+Build the project using `cmake . && make`, then run the server using:
+```
+LD_PRELOAD="./lib/librdmanetstack.so.1.1.0" ./build/tcp_server {IP}
+```
 
-Parameters:
+Run the client on another node using:
+```
+LD_PRELOAD="./lib/librdmanetstack.so.1.1.0" ./build/tcp_client {IP}
+```
+
+
+Benchmark parameters can be customized in `server-client/copmmon.h`:
 
 | Parameter Name | Default Value | Parameter Function |
 | -------------- | ------------- | ------------------ |
