@@ -45,7 +45,7 @@
 #define FIVEONETWO_MEGABYTES (1 << 29) // 512MB
 #define GIGABYTE (1 << 30) // 1GB
 
-#define NUM_TESTS 10
+#define NUM_TESTS 100
 #define NUM_ITERATIONS 100
 #define INIT_SIZE 2
 

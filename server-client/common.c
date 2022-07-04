@@ -109,7 +109,7 @@ int run_test(int fd, void (*function)(int fd, char *buffer, int size), char *buf
     double avg_bw = 0;
     struct timespec timediff;
     struct timespec start, end;
-    // function(fd, buffer, size); // warmup
+    function(fd, buffer, size); // warmup
 
     for (int j = 0; j < NUM_TESTS; j++) {
         clock_gettime(CLOCK_MONOTONIC_RAW, &start);
@@ -132,6 +132,7 @@ int run_test(int fd, void (*function)(int fd, char *buffer, int size), char *buf
         // printf(ANSI_COLOR_CYAN "%f,\n" ANSI_COLOR_RESET, time_num / (double)num_iter);
         avg_latency += time_num;
     }
+	usleep(1000);
 
     printf("Averages:\nGbps = " ANSI_COLOR_CYAN "%f" ANSI_COLOR_RESET ", Latency " ANSI_COLOR_CYAN "%f\n" ANSI_COLOR_RESET,
            avg_bw / (double)(NUM_TESTS), avg_latency / ((double)NUM_TESTS * (double)num_iter));

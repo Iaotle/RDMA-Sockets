@@ -71,9 +71,7 @@ struct __attribute((packed)) rdma_buffer_attr {
 };
 
 typedef struct sock {
-    /// server stuff
     /* These are the RDMA resources needed to setup an RDMA connection */
-    /* Event channel, where connection management (cm) related events are relayed */
     int fd;
     struct rdma_cm_id *cm_id;
     struct rdma_event_channel *event_channel;
@@ -100,11 +98,8 @@ typedef struct sock {
 
 } sock;
 
-sock fds[256];
 
 void gc_sock(sock *sock);
-
-sock *find_sock(int fd);
 
 /* resolves a given destination name to sin_addr */
 int get_addr(char *dst, struct sockaddr *addr);

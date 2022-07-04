@@ -30,17 +30,6 @@ sock* create(sock* socket) {
 // is list empty
 bool isEmpty() { return head == NULL; }
 
-int length() {
-    int length = 0;
-    node* current;
-
-    for (current = head; current != NULL; current = current->next) {
-        length++;
-    }
-
-    return length;
-}
-
 // find a sock with a given fd
 sock* find(int fd) {
     // start from the first link

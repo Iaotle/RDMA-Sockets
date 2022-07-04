@@ -28,9 +28,8 @@
 
 #include "common.h"
 
-
 int sanitycheck(int fd) {
-	printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
+    printf(ANSI_COLOR_RED "RUNNING SaNITY CHECK\n" ANSI_COLOR_RESET);
     char tx_buffer[TEST_MESSAGE_SIZE];
     write_pattern(tx_buffer, TEST_MESSAGE_SIZE);
     send(fd, tx_buffer, TEST_MESSAGE_SIZE, 0);  // SEND
@@ -64,9 +63,8 @@ int main(int argc, char** argv) {
     struct sockaddr_in server_addr, client_addr;
     char debug_buffer[INET_ADDRSTRLEN];
 
-	int init_size = INIT_SIZE;
+    int init_size = INIT_SIZE;
     int num_iter = NUM_ITERATIONS;
-
 
     // create the listening socket
     listen_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -134,19 +132,22 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &client_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("new incoming connection from %s \n", debug_buffer);
 
-
-	if (!sanitycheck(client_fd)) {
-		exit(-1);
-	}
+    if (!sanitycheck(client_fd)) {
+        exit(-1);
+    }
+    printf("Waiting 1s for network conditions to stabilize...\n");
+    sleep(1);
 
     for (size_t i = init_size; i <= GIGABYTE; i = (i << 1)) {
-		send_test(client_fd, i, num_iter);
-        sleep(1);
+        send_test(client_fd, i, num_iter);
+=
+		printf("Waiting 1s for network conditions to stabilize...\n");
+		sleep(1);
     }
 
-	if (!sanitycheck(client_fd)) {
-		exit(-1);
-	}
+    if (!sanitycheck(client_fd)) {
+        exit(-1);
+    }
 
     // close the two fds
     ret = close(client_fd);

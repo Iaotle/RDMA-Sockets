@@ -18,8 +18,6 @@ sock* create(sock* socket);
 
 bool isEmpty();
 
-int length();
-
 sock* find(int fd);
 
 void delete (int key);

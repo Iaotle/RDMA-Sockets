@@ -390,11 +390,7 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
 
     if (isEmpty()) return _send(fd, buf, len, flags);
     sock *sock = find(fd);
-    debug(ANSI_COLOR_YELLOW "find\n" ANSI_COLOR_RESET);
-
     if (sock) {
-        debug(ANSI_COLOR_YELLOW "found\n" ANSI_COLOR_RESET);
-
         int ret = -1;
         struct ibv_wc wc[2];
         static struct ibv_recv_wr recv_wr, *bad_recv_wr = NULL;
