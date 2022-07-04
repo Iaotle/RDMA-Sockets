@@ -5,6 +5,7 @@ Uses the call hijacking framework created by Animesh and Lin.
 Benchmark parameters can be customized in `server-client/copmmon.h`
 
 Parameters:
+
 | Parameter Name | Default Value | Parameter Function |
 | -------------- | ------------------ |
 | NUM_TESTS      | 100 | Runs this many tests for each message size from INIT_SIZE to MAX_SIZE |
