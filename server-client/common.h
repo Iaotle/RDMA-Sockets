@@ -45,11 +45,14 @@
 #define FIVEONETWO_MEGABYTES (1 << 29) // 512MB
 #define GIGABYTE (1 << 30) // 1GB
 
+
+// Benchmark Parameters:
 #define NUM_TESTS 100
 #define NUM_ITERATIONS 100
 #define INIT_SIZE 2
+#define MAX_SIZE GIGABYTE
 
-#define TEST_MESSAGE_SIZE GIGABYTE
+#define TEST_MESSAGE_SIZE MEGABYTE
 
 
 

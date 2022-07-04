@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
 		exit(-1);
 	}
 
-    for (size_t i = init_size; i <= GIGABYTE; i = (i << 1)) {
+    for (size_t i = init_size; i <= MAX_SIZE; i = (i << 1)) {
 		recv_test(server_fd, i, num_iter);
 
     }

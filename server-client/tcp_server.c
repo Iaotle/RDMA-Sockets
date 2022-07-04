@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
     printf("Waiting 1s for network conditions to stabilize...\n");
     sleep(1);
 
-    for (size_t i = init_size; i <= GIGABYTE; i = (i << 1)) {
+    for (size_t i = init_size; i <= MAX_SIZE; i = (i << 1)) {
         send_test(client_fd, i, num_iter);
 =
 		printf("Waiting 1s for network conditions to stabilize...\n");
