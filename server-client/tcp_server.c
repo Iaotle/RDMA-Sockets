@@ -25,6 +25,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "common.h"
 
@@ -138,17 +139,26 @@ int main(int argc, char** argv) {
     // printf("Waiting 1s for network conditions to stabilize...\n");
     // sleep(1);
 
+	
+    // int result, s;
+    // s = fcntl(client_fd, F_GETFL);
+    // s |= O_SYNC;  // set SYNC bit
+	// s |= O_NONBLOCK; // set NONBLOCK
+    // result = fcntl(client_fd, F_SETFL, s);
     for (size_t i = init_size; i <= MAX_SIZE; i = (i << 1)) {
-        send_test(client_fd, i, num_iter);
-    //     recv_test(client_fd, i, num_iter);
+        if (i > 64 * KILOBYTE) {
+            send_test(client_fd, i, 10);
+        } else
+            send_test(client_fd, i, num_iter);
+        //     recv_test(client_fd, i, num_iter);
 
-    // 	// printf("Waiting 1s for network conditions to stabilize...\n");
-    // 	// sleep(1);
-    // }
+        // 	// printf("Waiting 1s for network conditions to stabilize...\n");
+        // 	// sleep(1);
+        // }
 
-    // for (size_t i = MAX_SIZE; i >= init_size; i = (i >> 1)) {
-    //     send_test(client_fd, i, num_iter);
-    //     recv_test(client_fd, i, num_iter);
+        // for (size_t i = MAX_SIZE; i >= init_size; i = (i >> 1)) {
+        //     send_test(client_fd, i, num_iter);
+        //     recv_test(client_fd, i, num_iter);
 
         // printf("Waiting 1s for network conditions to stabilize...\n");
         sleep(1);

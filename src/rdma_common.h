@@ -55,6 +55,7 @@
 #define GC_NUM 10000  // number of buffers to garbagecollect after
 
 #define RECVBUF_SIZE GIGABYTE // size of the receive buffer 
+#define SNDBUF_SIZE GIGABYTE // size of the receive buffer 
 
 
 /*
@@ -103,11 +104,17 @@ typedef struct sock {
 
 
 	// dedicated buffers:
-    struct ibv_mr *recv_buf;  // RECVBUF_SIZE buffer for receiving messages (512mb default?)
-	struct rdma_buffer_attr remote_recvbuf; // remote recv_buf to send messages to
+	struct ibv_mr *send_buf;
+
+
+    struct ibv_mr *local_buf;  // RECVBUF_SIZE buffer for receiving messages (512mb default?)
 	int remote_written; // how much we wrote to remote buffer
+
+	struct rdma_buffer_attr remote_buf; // remote recv_buf to send messages to
 	int local_read; // how much was read from the buffer
 	int local_written; // how much was written to the buffer
+
+
 
 } sock;
 
@@ -163,6 +170,8 @@ void rdma_buffer_deregister(struct ibv_mr *mr);
  *          atleast this size.
  */
 int process_work_completion_events(struct ibv_comp_channel *comp_channel, struct ibv_wc *wc, int max_wc);
+
+int try_process_work_completion_events(struct ibv_comp_channel *comp_channel, struct ibv_wc *wc, int max_wc);
 
 /* prints some details from the cm id */
 void show_rdma_cmid(struct rdma_cm_id *id);

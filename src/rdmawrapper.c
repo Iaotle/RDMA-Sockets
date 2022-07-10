@@ -188,8 +188,14 @@ int exchange_metadata(sock *sock) {
         return NULL;
     }
 
-    if (!sock->recv_buf) {  // 1. allocate a receive buffer
-        sock->recv_buf = rdma_buffer_alloc(sock->pd /* which protection domain */, RECVBUF_SIZE /* what size to allocate */,
+    if (!sock->local_buf) {  // 1. allocate a receive buffer
+        sock->local_buf = rdma_buffer_alloc(sock->pd /* which protection domain */, RECVBUF_SIZE /* what size to allocate */,
+                                            (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE), /* access permissions */
+                                            NULL);                                              // will need calloc here.
+    }
+
+    if (!sock->send_buf) {  // 1. allocate a send buffer
+        sock->send_buf = rdma_buffer_alloc(sock->pd /* which protection domain */, SNDBUF_SIZE /* what size to allocate */,
                                            (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE), /* access permissions */
                                            NULL);                                              // will need calloc here.
     }
@@ -197,7 +203,7 @@ int exchange_metadata(sock *sock) {
     // 2. pre-post a receive buffer for remote metadata
     struct ibv_sge send_sge;
     struct ibv_recv_wr recv_wr, *bad_recv_wr;
-    struct ibv_mr *receive_mr = rdma_buffer_register(sock->pd, &sock->remote_recvbuf, sizeof(sock->remote_recvbuf), (IBV_ACCESS_LOCAL_WRITE));
+    struct ibv_mr *receive_mr = rdma_buffer_register(sock->pd, &sock->remote_buf, sizeof(sock->remote_buf), (IBV_ACCESS_LOCAL_WRITE));
     if (!receive_mr) {
         rdma_error("Failed to setup the metadata mr , -ENOMEM\n");
         return -ENOMEM;
@@ -228,9 +234,9 @@ int exchange_metadata(sock *sock) {
     }
 
     /* we prepare metadata for the data buffer */
-    buffer_attr.address = (uint64_t)sock->recv_buf->addr;
-    buffer_attr.length = sock->recv_buf->length;
-    buffer_attr.stag.local_stag = sock->recv_buf->lkey;
+    buffer_attr.address = (uint64_t)sock->local_buf->addr;
+    buffer_attr.length = sock->local_buf->length;
+    buffer_attr.stag.local_stag = sock->local_buf->lkey;
 
     /* now we fill up SGE */
     send_sge.addr = (uint64_t)metadata_mr->addr;
@@ -261,7 +267,7 @@ int exchange_metadata(sock *sock) {
         return ret;
     }
     debug("Credentials of the remote recvbuf:\n");
-    show_rdma_buffer_attr(&sock->remote_recvbuf);
+    show_rdma_buffer_attr(&sock->remote_buf);
 
     // debug("prepost receive buffer\n");
     // ret = ibv_post_recv(sock->qp /* which QP */, &recv_wr /* receive work request*/, &bad_recv_wr /* error WRs */);
@@ -404,10 +410,11 @@ int accept(int fd, struct sockaddr *restrict address, socklen_t *restrict addres
 
         memset(&conn_param, 0, sizeof(conn_param));
         /* this tell how many outstanding requests can we handle */
-        conn_param.initiator_depth = 3; /* For this exercise, we put a small number here */
+        conn_param.initiator_depth = 7; /* For this exercise, we put a small number here */
         /* This tell how many outstanding requests we expect other side to handle */
-        conn_param.responder_resources = 3; /* For this exercise, we put a small number */
+        conn_param.responder_resources = 7; /* For this exercise, we put a small number */
         conn_param.rnr_retry_count = 7;
+		
         new_socket->event_channel = rdma_create_event_channel();
         ret = rdma_migrate_id(new_socket->cm_id, new_socket->event_channel);
         if (ret) {
@@ -504,8 +511,14 @@ int bind(int fd, const struct sockaddr *server_sockaddr,
     return _bind(fd, server_sockaddr, address_len);
 }
 
-struct ibv_send_wr send_wrs[100];
+struct ibv_send_wr send_wrs[1000];
 int send_wr_counter = 0;
+
+int num_calloc = 0, post = 0, registration = 0;
+double amount_calloc = 0, amount_post = 0, amount_registration = 0;
+
+/// TODO: we can batch the read work completions based on the amount of credits that remain.
+int counter = 0;
 
 ssize_t send(int fd, const void *buf, size_t len, int flags) {
     debug(ANSI_COLOR_YELLOW "\tSEND CALL, fd: %d\n" ANSI_COLOR_RESET, fd);
@@ -523,41 +536,53 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
             // 3. wait for completion of write
             // 4. move counter
 
-            struct timespec timediff;
-            struct timespec start, end;
-            clock_gettime(CLOCK_MONOTONIC_RAW, &start);
-            clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-
             int ret = -1;
             /* Step 1: is to copy the local buffer into the remote buffer. We will
              * reuse the previous variables. */
             /* now we fill up SGE */
             struct ibv_sge sge;
-            struct ibv_send_wr *send_wr = calloc(1, sizeof(struct ibv_send_wr)), bad_send_wr;
+            struct ibv_send_wr *send_wr = &send_wrs[send_wr_counter], bad_send_wr;
+            // send_wr_counter += 1;
+            // if (send_wr_counter == 1000) {
+            //     send_wr_counter = 0;
+            // }
             struct ibv_wc wc;
-			clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-            timediff = diff(start, end);
+            // clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+            // timediff = diff(start, end);
 
-            double time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
-			if (time_num >= 0.00001)
-				printf("Timediff calloc %f\n", time_num);
-			clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+            // double time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
+            // if (time_num >= 0.00001) {
+            //     num_calloc++;
+            //     amount_calloc += time_num;
+            //     // printf(ANSI_COLOR_RED "Timediff calloc %f\n" ANSI_COLOR_RESET, time_num);
+            // }
 
             /// register RDMA buffer for the stuff we're sending
             if (!(sock->last_bufptr_send == buf && sock->last_len_send == len)) {  // buffers are the same, no need to re-register
-                sock->mr_send = rdma_buffer_register(sock->pd, buf, len, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE));
+                sock->mr_send = rdma_buffer_register(sock->pd, buf, len, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
+                IBV_ACCESS_REMOTE_WRITE));
             }
             if (!sock->mr_send) {
                 rdma_error("Failed to register the data buffer, ret = %d \n", ret);
                 return ret;
             }
-			clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-            timediff = diff(start, end);
+            // if (!(sock->last_bufptr_send == buf && sock->last_len_send == len)) {
+                // struct timespec timediff;
+                // struct timespec start, end;
+                // clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+                // memcpy(sock->send_buf->addr, buf, len);
+                // clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+                // timediff = diff(start, end);
 
-            time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
-			if (time_num >= 0.00001)
-				printf("Timediff registration %f\n", time_num);
-			clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+                // double time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
+                // if (time_num >= 0.00001) {
+                //     registration++;
+                //     amount_registration += time_num;
+                //     printf(ANSI_COLOR_YELLOW "Timediff memcpy %f\n" ANSI_COLOR_RESET, time_num);
+                // }
+            // }
+
+            // clock_gettime(CLOCK_MONOTONIC_RAW, &start);
             sge.addr = (uint64_t)sock->mr_send->addr;
             sge.length = (uint32_t)sock->mr_send->length;
             sge.lkey = sock->mr_send->lkey;
@@ -570,8 +595,8 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
             send_wr->imm_data = len;
             // send the length of the buffer with the immediate call
             /* we have to give info for RDMA */
-            send_wr->wr.rdma.rkey = sock->remote_recvbuf.stag.local_stag;
-            send_wr->wr.rdma.remote_addr = sock->remote_recvbuf.address + sock->remote_written;
+            send_wr->wr.rdma.rkey = sock->remote_buf.stag.local_stag;
+            send_wr->wr.rdma.remote_addr = sock->remote_buf.address + sock->remote_written;
             debug("posting our buffer to send\n");
             ret = ibv_post_send(sock->qp, send_wr, &bad_send_wr);
             /// TODO: IMPORTANT we need to free send_wr or leak memory like bad programmers
@@ -580,17 +605,21 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
                 exit(-1);
                 return -errno;
             }
-            clock_gettime(CLOCK_MONOTONIC_RAW, &end);
-            timediff = diff(start, end);
+            // clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+            // timediff = diff(start, end);
 
-            time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
-			if (time_num >= 0.00001)
-				printf("Timediff post send %f\n", time_num);
-			clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+            // time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
+            // if (time_num >= 0.00001) {
+            //     post++;
+            //     amount_post += time_num;
+            //     // printf(ANSI_COLOR_MAGENTA "Timediff post send %f\n" ANSI_COLOR_RESET, time_num);
+            // }
+            // clock_gettime(CLOCK_MONOTONIC_RAW, &start);
             /* at this point we are expecting 1 work completion for the write */
+
             ret = process_work_completion_events(sock->completion_channel, &wc, 1);
             if (ret != 1) {
-                rdma_error("We failed to get 1 work completions , ret = %d \n", ret);
+                rdma_error("We failed to get %d work completions , ret = %d \n", 1, ret);
                 return ret;
             }
 
@@ -799,12 +828,12 @@ ssize_t recv(int fd, void *buf, size_t len, int flags) {
             }
             debug("success, got %s, local_offset %d\n", msgSize(wc.imm_data), sock->local_written);
 
-            debug("will now copy from  %p to %p\n", sock->recv_buf->addr + sock->local_written,
-                  sock->recv_buf->addr + sock->local_written + wc.imm_data);
+            debug("will now copy from  %p to %p\n", sock->local_buf->addr + sock->local_written,
+                  sock->local_buf->addr + sock->local_written + wc.imm_data);
 
-            memcpy(buf, sock->recv_buf->addr + sock->local_written,
+            memcpy(buf, sock->local_buf->addr + sock->local_written,
                    wc.imm_data);  /// TODO: track how much data we already read and how much we have available.
-            debug("recv_buf_addr: 0x%x\n", *((char *)sock->recv_buf->addr));
+            debug("recv_buf_addr: 0x%x\n", *((char *)sock->local_buf->addr));
             sock->local_written += (int)wc.imm_data;  /// TODO: ditto
 
             if (!(sock->last_bufptr_recv == buf && sock->last_len_recv == len)) {  // we only GC when new buffer is passed
@@ -998,6 +1027,8 @@ int close(int fd) {
     }
     sock *sock = find(fd);
     if (sock) {
+        printf("calloc: %d, registration %d, post %d\n", num_calloc, registration, post);
+        printf("totals:\ncalloc: %f, registration %f, post %f\n", amount_calloc, amount_registration, amount_post);
         // disconnect
         if (sock->qp) {
             rdma_disconnect(sock->cm_id);
@@ -1023,7 +1054,7 @@ int close(int fd) {
 
         if (sock->metadata_mr) rdma_buffer_deregister(sock->metadata_mr);
         if (sock->metadata_mr2) rdma_buffer_deregister(sock->metadata_mr2);
-        if (sock->recv_buf) rdma_buffer_free(sock->recv_buf);
+        if (sock->local_buf) rdma_buffer_free(sock->local_buf);
 
         /* Destroy protection domain */
         if (sock->pd) ibv_dealloc_pd(sock->pd);
@@ -1158,9 +1189,9 @@ int connect(int fd, const struct sockaddr *addr, socklen_t addrlen) {
         struct rdma_conn_param conn_param;
         ret = -1;
         bzero(&conn_param, sizeof(conn_param));
-        conn_param.initiator_depth = 3;
-        conn_param.responder_resources = 3;
-        conn_param.retry_count = 3;  // if fail, then how many times to retry
+        conn_param.initiator_depth = 7;
+        conn_param.responder_resources = 7;
+        conn_param.retry_count = 7;  // if fail, then how many times to retry
         conn_param.rnr_retry_count = 7;
         ret = rdma_connect(sock->cm_id, &conn_param);
         if (ret) {

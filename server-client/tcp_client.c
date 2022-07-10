@@ -22,6 +22,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "common.h"
 
@@ -64,7 +65,7 @@ int main(int argc, char** argv) {
     struct sockaddr_in server_addr;
     char debug_buffer[INET_ADDRSTRLEN];
 
-	int init_size = INIT_SIZE;
+    int init_size = INIT_SIZE;
     int num_iter = NUM_ITERATIONS;
 
     printf("usage: ./rdma_client ip [default: 127.0.0.1] port [default: %d]\n", PORT);
@@ -107,25 +108,33 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &server_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("OK: connected to the server at %s \n", debug_buffer);
 
-	// if (!sanitycheck(server_fd)) {
-	// 	exit(-1);
-	// }
-
-    for (size_t i = init_size; i <= MAX_SIZE; i = (i << 1)) {
-		recv_test(server_fd, i, num_iter);
-	// 	send_test(server_fd, i, num_iter);
-
+    // if (!sanitycheck(server_fd)) {
+    // 	exit(-1);
     // }
 
-	// for (size_t i = MAX_SIZE; i >= init_size; i = (i >> 1)) {
-	// 	recv_test(server_fd, i, num_iter);
-	// 	send_test(server_fd, i, num_iter);
+    // int result, s;
+    // s = fcntl(server_fd, F_GETFL);
+    // s |= O_SYNC;  // set SYNC bit
+	// s |= O_NONBLOCK;
+    // result = fcntl(server_fd, F_SETFL, s);
 
+    for (size_t i = init_size; i <= MAX_SIZE; i = (i << 1)) {
+        if (i > 64 * KILOBYTE) {
+            recv_test(server_fd, i, 10);
+        } else
+            recv_test(server_fd, i, num_iter);
+        // 	send_test(server_fd, i, num_iter);
+
+        // }
+
+        // for (size_t i = MAX_SIZE; i >= init_size; i = (i >> 1)) {
+        // 	recv_test(server_fd, i, num_iter);
+        // 	send_test(server_fd, i, num_iter);
     }
 
-	// if (!sanitycheck(server_fd)) {
-	// 	exit(-1);
-	// }
+    // if (!sanitycheck(server_fd)) {
+    // 	exit(-1);
+    // }
 
     // close the socket
     ret = close(server_fd);

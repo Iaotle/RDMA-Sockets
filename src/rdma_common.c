@@ -8,7 +8,6 @@
 
 #include "rdma_common.h"
 
-
 // Debug info about buffer
 inline void show_rdma_buffer_attr(struct rdma_buffer_attr *attr) {
     if (!attr) {
@@ -29,7 +28,7 @@ inline struct ibv_mr *rdma_buffer_alloc(struct ibv_pd *pd, uint32_t size, enum i
     }
     if (!buf) {
         // rdma_error("buffer isn't allocated, -ENOMEM\n");
-    	buf = calloc(1, size);
+        buf = calloc(1, size);
         // return NULL;
     }
     debug("Buffer allocated: %p , len: %u \n", buf, size);
@@ -80,6 +79,7 @@ inline void rdma_buffer_deregister(struct ibv_mr *mr) {
 
 inline void gc_sock(sock *sock) {
     if (sock->gc_counter > GC_NUM) {
+        printf(ANSI_COLOR_RED "COLLECTING GARBAGE\n" ANSI_COLOR_RESET);
         sock->gc_counter = 0;
         for (size_t i = 0; i < GC_NUM; i++) {
             rdma_buffer_deregister(sock->gc_container[i]);
@@ -187,6 +187,64 @@ inline const char *mapStatusToType(enum ibv_wc_status status) {
         case IBV_WC_GENERAL_ERR:
             return "IBV_WC_GENERAL_ERR";
     }
+}
+
+// Process WC (work completion) event
+inline int try_process_work_completion_events(struct ibv_comp_channel *comp_channel, struct ibv_wc *wc, int max_wc) {
+    struct ibv_cq *cq_ptr = NULL;
+    void *context = NULL;
+    int ret = -1, i, total_wc = 0;
+    /* We wait for the notification on the CQ channel */
+    ret = ibv_get_cq_event(comp_channel, /* IO channel where we are expecting the notification */
+                           &cq_ptr,      /* which CQ has an activity. This should be the same as CQ we created before */
+                           &context);    /* Associated CQ user context, which we did set */
+    if (ret) {
+        rdma_error("Failed to get next CQ event due to %d \n", -errno);
+        return -errno;
+    }
+    /* Request for more notifications. */
+    ret = ibv_req_notify_cq(cq_ptr, 0);
+    if (ret) {
+        rdma_error("Failed to request further notifications %d \n", -errno);
+        return -errno;
+    }
+    /* We got notification. We reap the work completion (WC) element. It is
+     * unlikely but a good practice it write the CQ polling code that
+     * can handle zero WCs. ibv_poll_cq can return zero. Same logic as
+     * MUTEX conditional variables in pthread programming.
+     */
+	int counter = 0;
+    total_wc = 0;
+    do {
+        ret = ibv_poll_cq(cq_ptr /* the CQ, we got notification for */, max_wc - total_wc /* number of remaining WC elements*/,
+                          wc + total_wc /* where to store */);
+        if (ret < 0) {
+            rdma_error("Failed to poll cq for wc due to %d \n", ret);
+            /* ret is errno here */
+            return ret;
+        }
+        total_wc += ret;
+		// counter++;
+		// if (1) {
+		// 	return 1;
+		// }
+    } while (total_wc < max_wc);  // haha
+	printf("counter: %d\n", counter);
+    debug("%d WC completed \n", total_wc);
+    /* Now we check validity and status of I/O work completions */
+    for (i = 0; i < total_wc; i++) {
+        debug("%s\n", mapOpcodeToType(wc[i].opcode));
+        if (wc[i].status != IBV_WC_SUCCESS) {
+            rdma_error("Work completion (WC) has error status: %s at index %d", ibv_wc_status_str(wc[i].status), i);
+            /* return negative value */
+            return -(wc[i].status);
+        }
+    }
+    /* Similar to connection management events, we need to acknowledge CQ events */
+    ibv_ack_cq_events(cq_ptr,
+                      1 /* we received one event notification. This is not
+		       number of WC elements */);
+    return total_wc;
 }
 
 // Process WC (work completion) event
