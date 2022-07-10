@@ -132,22 +132,31 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &client_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("new incoming connection from %s \n", debug_buffer);
 
-    if (!sanitycheck(client_fd)) {
-        exit(-1);
-    }
-    printf("Waiting 1s for network conditions to stabilize...\n");
-    sleep(1);
+    // if (!sanitycheck(client_fd)) {
+    //     exit(-1);
+    // }
+    // printf("Waiting 1s for network conditions to stabilize...\n");
+    // sleep(1);
 
     for (size_t i = init_size; i <= MAX_SIZE; i = (i << 1)) {
         send_test(client_fd, i, num_iter);
-=
-		printf("Waiting 1s for network conditions to stabilize...\n");
-		sleep(1);
+    //     recv_test(client_fd, i, num_iter);
+
+    // 	// printf("Waiting 1s for network conditions to stabilize...\n");
+    // 	// sleep(1);
+    // }
+
+    // for (size_t i = MAX_SIZE; i >= init_size; i = (i >> 1)) {
+    //     send_test(client_fd, i, num_iter);
+    //     recv_test(client_fd, i, num_iter);
+
+        // printf("Waiting 1s for network conditions to stabilize...\n");
+        sleep(1);
     }
 
-    if (!sanitycheck(client_fd)) {
-        exit(-1);
-    }
+    // if (!sanitycheck(client_fd)) {
+    //     exit(-1);
+    // }
 
     // close the two fds
     ret = close(client_fd);

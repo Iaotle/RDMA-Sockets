@@ -23,6 +23,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include "util.h"
 /* Error Macro*/
 #define rdma_error(msg, args...)                                               \
     do {                                                                       \
@@ -43,15 +44,18 @@
 #endif /* ACN_RDMA_DEBUG */
 
 /* Capacity of the completion queue (CQ) */
-#define CQ_CAPACITY (16)
+#define CQ_CAPACITY (16351)
 /* MAX SGE capacity */
-#define MAX_SGE (2)
+#define MAX_SGE (8)
 /* MAX work requests */
-#define MAX_WR (8)
+#define MAX_WR (16351)
 /* Default port where the RDMA server is listening */
 #define DEFAULT_RDMA_PORT (20886)
 
 #define GC_NUM 10000  // number of buffers to garbagecollect after
+
+#define RECVBUF_SIZE GIGABYTE // size of the receive buffer 
+
 
 /*
  * We use attribute so that compiler does not step in and try to pad the structure.
@@ -69,6 +73,7 @@ struct __attribute((packed)) rdma_buffer_attr {
         uint32_t remote_stag;
     } stag;
 };
+
 
 typedef struct sock {
     /* These are the RDMA resources needed to setup an RDMA connection */
@@ -96,8 +101,15 @@ typedef struct sock {
     struct ibv_mr *gc_container[GC_NUM];
     int gc_counter;
 
-} sock;
 
+	// dedicated buffers:
+    struct ibv_mr *recv_buf;  // RECVBUF_SIZE buffer for receiving messages (512mb default?)
+	struct rdma_buffer_attr remote_recvbuf; // remote recv_buf to send messages to
+	int remote_written; // how much we wrote to remote buffer
+	int local_read; // how much was read from the buffer
+	int local_written; // how much was written to the buffer
+
+} sock;
 
 void gc_sock(sock *sock);
 
@@ -155,12 +167,5 @@ int process_work_completion_events(struct ibv_comp_channel *comp_channel, struct
 /* prints some details from the cm id */
 void show_rdma_cmid(struct rdma_cm_id *id);
 
-#define ANSI_COLOR_RED "\x1b[31m"
-#define ANSI_COLOR_GREEN "\x1b[32m"
-#define ANSI_COLOR_YELLOW "\x1b[33m"
-#define ANSI_COLOR_BLUE "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN "\x1b[36m"
-#define ANSI_COLOR_RESET "\x1b[0m"
 
 #endif /* RDMA_COMMON_H */

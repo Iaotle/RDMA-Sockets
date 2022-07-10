@@ -8,15 +8,16 @@
 
 #include "rdma_common.h"
 
+
 // Debug info about buffer
 inline void show_rdma_buffer_attr(struct rdma_buffer_attr *attr) {
     if (!attr) {
         rdma_error("Passed attr is NULL\n");
         return;
     }
-    debug("---------------------------------------------------------\n");
-    debug("buffer attr, addr: %p , len: %u , stag : 0x%x \n", (void *)attr->address, (unsigned int)attr->length, attr->stag.local_stag);
-    debug("---------------------------------------------------------\n");
+    printf("---------------------------------------------------------\n");
+    printf("buffer attr, addr: %p , len: %s , stag : 0x%x \n", (void *)attr->address, msgSize(attr->length), attr->stag.local_stag);
+    printf("---------------------------------------------------------\n");
 }
 
 // Allocate RDMA buffer
@@ -26,10 +27,10 @@ inline struct ibv_mr *rdma_buffer_alloc(struct ibv_pd *pd, uint32_t size, enum i
         rdma_error("Protection domain is NULL \n");
         return NULL;
     }
-    // buf = calloc(1, size);
     if (!buf) {
-        rdma_error("buffer isn't allocated, -ENOMEM\n");
-        return NULL;
+        // rdma_error("buffer isn't allocated, -ENOMEM\n");
+    	buf = calloc(1, size);
+        // return NULL;
     }
     debug("Buffer allocated: %p , len: %u \n", buf, size);
     mr = rdma_buffer_register(pd, buf, size, permission);
@@ -77,7 +78,7 @@ inline void rdma_buffer_deregister(struct ibv_mr *mr) {
     ibv_dereg_mr(mr);
 }
 
-void gc_sock(sock *sock) {
+inline void gc_sock(sock *sock) {
     if (sock->gc_counter > GC_NUM) {
         sock->gc_counter = 0;
         for (size_t i = 0; i < GC_NUM; i++) {

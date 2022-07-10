@@ -31,7 +31,8 @@ add_library(rdmanetstack SHARED
         src/init.c
 		src/rdma_common.c
 		src/socklist.c
-        src/rdmawrapper.c)
+        src/rdmawrapper.c
+		src/util.c)
 
 find_package(Threads)
 find_library(IBVERBS_LIBRARY ibverbs HINTS /home/atr/local/lib)
@@ -54,5 +55,5 @@ install(TARGETS rdmanetstack
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-add_executable(tcp_server server-client/tcp_server.c server-client/common.c)
-add_executable(tcp_client server-client/tcp_client.c server-client/common.c)
+add_executable(tcp_server server-client/tcp_server.c server-client/common.c src/util.c)
+add_executable(tcp_client server-client/tcp_client.c server-client/common.c src/util.c)

@@ -19,6 +19,7 @@
 #include "rdmawrapper.h"
 
 #include <dlfcn.h>
+#include <time.h>
 
 #include "init.h"
 #include "rdma_common.h"
@@ -99,13 +100,21 @@ int socket(int domain, int type, int protocol) {
         int ret = -1;
         sock *socket = (sock *)malloc(sizeof(sock));
         if (!socket) {
-            printf("Failed to create socket\n");
+            debug("Failed to create socket\n");
             return -1;
         }
         if (!create(socket)) {
-            printf("Failed to create node\n");
+            debug("Failed to create node\n");
             return -1;
         }
+
+        // int num = 0;
+        // struct ibv_context **context = rdma_get_devices(&num);
+        // for (int i = 0; i < num; i++) {
+        //     struct ibv_device_attr attr;
+        //     ibv_query_device(context[i], &attr);
+        //     dprintf(STDOUT_FILENO, "\n");
+        // }
 
         /*  Open a channel used to report asynchronous communication event */
         socket->event_channel = rdma_create_event_channel();
@@ -125,6 +134,8 @@ int socket(int domain, int type, int protocol) {
             return -errno;
         }
         socket->gc_counter = 0;
+        socket->local_written = 0;
+        socket->remote_written = 0;
 
         debug("socket made with id %d\n", socket->cm_id);
         socket->fd = (intptr_t)socket->cm_id;
@@ -157,6 +168,111 @@ int listen(int fd, int n) {
     return _listen(fd, n);
 }
 
+/**
+ * @brief Exchange receive buffer metadata.
+ * @details
+ * 1. Allocate a receive buffer
+ * 2. Pre-post a receive buffer for metadata of the receive buffer of the remote
+ * 3. Post buffer address to the remote
+ * 4. Get remote buffer from pre-posted receive buffer.
+ * @param sock
+ * @return NULL on error, 0 on successful metadata exchange
+ */
+int exchange_metadata(sock *sock) {
+    if (!sock) {
+        debug("error: no socket provided to exchange metadata\n");
+        return NULL;
+    }
+    if (!sock->pd) {
+        debug("error: no socket pd\n");
+        return NULL;
+    }
+
+    if (!sock->recv_buf) {  // 1. allocate a receive buffer
+        sock->recv_buf = rdma_buffer_alloc(sock->pd /* which protection domain */, RECVBUF_SIZE /* what size to allocate */,
+                                           (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE), /* access permissions */
+                                           NULL);                                              // will need calloc here.
+    }
+
+    // 2. pre-post a receive buffer for remote metadata
+    struct ibv_sge send_sge;
+    struct ibv_recv_wr recv_wr, *bad_recv_wr;
+    struct ibv_mr *receive_mr = rdma_buffer_register(sock->pd, &sock->remote_recvbuf, sizeof(sock->remote_recvbuf), (IBV_ACCESS_LOCAL_WRITE));
+    if (!receive_mr) {
+        rdma_error("Failed to setup the metadata mr , -ENOMEM\n");
+        return -ENOMEM;
+    }
+    send_sge.addr = (uint64_t)receive_mr->addr;
+    send_sge.length = (uint32_t)receive_mr->length;
+    send_sge.lkey = (uint32_t)receive_mr->lkey;
+    /* now we link it to the request */
+    bzero(&recv_wr, sizeof(recv_wr));
+    recv_wr.sg_list = &send_sge;
+    recv_wr.num_sge = 1;
+
+    int ret = ibv_post_recv(sock->qp /* which QP */, &recv_wr /* receive work request*/, &bad_recv_wr /* error WRs */);
+    if (ret) {
+        rdma_error("Failed to post the receive buffer, errno: %d \n", ret);
+        return ret;
+    }
+    debug("Receive buffer posting is successful \n");
+
+    // 3. post buffer to remote
+    struct rdma_buffer_attr buffer_attr;
+    struct ibv_mr *metadata_mr = rdma_buffer_register(sock->pd, &buffer_attr, sizeof(buffer_attr), (IBV_ACCESS_LOCAL_WRITE));
+    struct ibv_send_wr send_wr, *bad_send_wr;
+
+    if (!metadata_mr) {
+        rdma_error("Failed to register the metadata buffer, ret = %d \n", ret);
+        return ret;
+    }
+
+    /* we prepare metadata for the data buffer */
+    buffer_attr.address = (uint64_t)sock->recv_buf->addr;
+    buffer_attr.length = sock->recv_buf->length;
+    buffer_attr.stag.local_stag = sock->recv_buf->lkey;
+
+    /* now we fill up SGE */
+    send_sge.addr = (uint64_t)metadata_mr->addr;
+    send_sge.length = (uint32_t)metadata_mr->length;
+    send_sge.lkey = metadata_mr->lkey;
+    /* now we link to the send work request */
+    bzero(&send_wr, sizeof(send_wr));
+    send_wr.sg_list = &send_sge;
+    send_wr.num_sge = 1;
+    send_wr.opcode = IBV_WR_SEND;
+    send_wr.send_flags = IBV_SEND_SIGNALED;
+    /* Now we post it */
+    debug("send: posting our metadata to send\n");
+
+    ret = ibv_post_send(sock->qp, &send_wr, &bad_send_wr);
+    if (ret) {
+        rdma_error("Failed to send client metadata, errno: %d \n", -errno);
+        return -errno;
+    }
+
+    struct ibv_wc wc[2];
+    /* at this point we are expecting 2 work completions. One for our
+     * send and one for recv that we will get from the remote for
+     * its buffer information */
+    ret = process_work_completion_events(sock->completion_channel, wc, 2);
+    if (ret != 2) {
+        rdma_error("We failed to get 2 work completions , ret = %d \n", ret);
+        return ret;
+    }
+    debug("Credentials of the remote recvbuf:\n");
+    show_rdma_buffer_attr(&sock->remote_recvbuf);
+
+    // debug("prepost receive buffer\n");
+    // ret = ibv_post_recv(sock->qp /* which QP */, &recv_wr /* receive work request*/, &bad_recv_wr /* error WRs */);
+    // if (ret) {
+    //     rdma_error("Failed to post the receive buffer, errno: %d \n", ret);
+    //     return ret;
+    // }
+
+    return 0;
+}
+
 int accept(int fd, struct sockaddr *restrict address, socklen_t *restrict address_len) {
     // setup client resources
     debug(ANSI_COLOR_YELLOW "\tACCEPT CALL\n" ANSI_COLOR_RESET);
@@ -182,13 +298,15 @@ int accept(int fd, struct sockaddr *restrict address, socklen_t *restrict addres
 
         struct sock *new_socket = (struct sock *)malloc(sizeof(struct sock));
         if (!new_socket) {
-            printf("Failed to create socket\n");
+            debug("Failed to create socket\n");
             return -1;
         }
         memcpy(new_socket, sock, sizeof(struct sock));  // inherit data from old socket
         new_socket->cm_id = cm_event->id;
         new_socket->fd = (intptr_t)cm_event->id;
         new_socket->gc_counter = 0;
+        new_socket->local_written = 0;
+        new_socket->remote_written = 0;
         /* now we acknowledge the event. Acknowledging the event free the resources
          * associated with the event structure. Hence any reference to the event
          * must be made before acknowledgment. Like, we have already saved the
@@ -333,28 +451,31 @@ int accept(int fd, struct sockaddr *restrict address, socklen_t *restrict addres
             return -ENOMEM;
         }
 
-        /* We pre-post this receive buffer for client metadata on the QP. SGE credentials is where we
-         * receive the metadata from the client */
-        remote_recv_sge.addr = (uint64_t)new_socket->metadata_mr->addr;
-        remote_recv_sge.length = new_socket->metadata_mr->length;
-        remote_recv_sge.lkey = new_socket->metadata_mr->lkey;
-        /* Now we link this SGE to the work request (WR) */
-        bzero(&remote_recv_wr, sizeof(remote_recv_wr));
-        remote_recv_wr.sg_list = &remote_recv_sge;
-        remote_recv_wr.num_sge = 1;  // only one SGE
-        debug("accept: preposting buffer for client metadata to recv\n");
-        ret = ibv_post_recv(new_socket->qp /* which QP */, &remote_recv_wr /* receive work request*/, &bad_remote_recv_wr /* error WRs */);
-        if (ret) {
-            rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
-            return ret;
-        }
-        debug("Receive buffer pre-posting is successful \n");
+        // this will hopefully exchange the receive buffer metadata
+        exchange_metadata(new_socket);
+
+        // /* We pre-post this receive buffer for client metadata on the QP. SGE credentials is where we
+        //  * receive the metadata from the client */
+        // remote_recv_sge.addr = (uint64_t)new_socket->metadata_mr->addr;
+        // remote_recv_sge.length = new_socket->metadata_mr->length;
+        // remote_recv_sge.lkey = new_socket->metadata_mr->lkey;
+        // /* Now we link this SGE to the work request (WR) */
+        // bzero(&remote_recv_wr, sizeof(remote_recv_wr));
+        // remote_recv_wr.sg_list = &remote_recv_sge;
+        // remote_recv_wr.num_sge = 1;  // only one SGE
+        // debug("accept: preposting buffer for client metadata to recv\n");
+        // ret = ibv_post_recv(new_socket->qp /* which QP */, &remote_recv_wr /* receive work request*/, &bad_remote_recv_wr /* error WRs */);
+        // if (ret) {
+        //     rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
+        //     return ret;
+        // }
+        // debug("Receive buffer pre-posting is successful \n");
 
         memcpy(address, rdma_get_peer_addr(new_socket->cm_id), sizeof(struct sockaddr));
         address_len = (int *)sizeof(struct sockaddr);
         debug("A new connection is accepted from %s \n", inet_ntoa(((struct sockaddr_in *)address)->sin_addr));
         if (!create(new_socket)) {
-            printf("Failed to create node\n");
+            debug("Failed to create node\n");
             return -1;
         }
 
@@ -383,6 +504,9 @@ int bind(int fd, const struct sockaddr *server_sockaddr,
     return _bind(fd, server_sockaddr, address_len);
 }
 
+struct ibv_send_wr send_wrs[100];
+int send_wr_counter = 0;
+
 ssize_t send(int fd, const void *buf, size_t len, int flags) {
     debug(ANSI_COLOR_YELLOW "\tSEND CALL, fd: %d\n" ANSI_COLOR_RESET, fd);
 
@@ -391,6 +515,121 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
     if (isEmpty()) return _send(fd, buf, len, flags);
     sock *sock = find(fd);
     if (sock) {
+        // printf("cond: %d, len: %d, size-offset: %d\n", len <= RECVBUF_SIZE - sock->remote_offset, len, RECVBUF_SIZE - sock->remote_offset);
+        if (len <= RECVBUF_SIZE - sock->remote_written) {  // can write to recvbuf, and have enough space
+            debug(ANSI_COLOR_CYAN "1\n" ANSI_COLOR_RESET);
+            // 1. set imm to the size of write
+            // 2. rdma_write_imm to the remote buffer
+            // 3. wait for completion of write
+            // 4. move counter
+
+            struct timespec timediff;
+            struct timespec start, end;
+            clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+            clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+
+            int ret = -1;
+            /* Step 1: is to copy the local buffer into the remote buffer. We will
+             * reuse the previous variables. */
+            /* now we fill up SGE */
+            struct ibv_sge sge;
+            struct ibv_send_wr *send_wr = calloc(1, sizeof(struct ibv_send_wr)), bad_send_wr;
+            struct ibv_wc wc;
+			clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+            timediff = diff(start, end);
+
+            double time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
+			if (time_num >= 0.00001)
+				printf("Timediff calloc %f\n", time_num);
+			clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+
+            /// register RDMA buffer for the stuff we're sending
+            if (!(sock->last_bufptr_send == buf && sock->last_len_send == len)) {  // buffers are the same, no need to re-register
+                sock->mr_send = rdma_buffer_register(sock->pd, buf, len, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE));
+            }
+            if (!sock->mr_send) {
+                rdma_error("Failed to register the data buffer, ret = %d \n", ret);
+                return ret;
+            }
+			clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+            timediff = diff(start, end);
+
+            time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
+			if (time_num >= 0.00001)
+				printf("Timediff registration %f\n", time_num);
+			clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+            sge.addr = (uint64_t)sock->mr_send->addr;
+            sge.length = (uint32_t)sock->mr_send->length;
+            sge.lkey = sock->mr_send->lkey;
+            /* now we link to the send work request */
+            // bzero(&send_wr, sizeof(send_wr));
+            send_wr->sg_list = &sge;
+            send_wr->num_sge = 1;
+            send_wr->opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
+            send_wr->send_flags = IBV_SEND_SIGNALED;
+            send_wr->imm_data = len;
+            // send the length of the buffer with the immediate call
+            /* we have to give info for RDMA */
+            send_wr->wr.rdma.rkey = sock->remote_recvbuf.stag.local_stag;
+            send_wr->wr.rdma.remote_addr = sock->remote_recvbuf.address + sock->remote_written;
+            debug("posting our buffer to send\n");
+            ret = ibv_post_send(sock->qp, send_wr, &bad_send_wr);
+            /// TODO: IMPORTANT we need to free send_wr or leak memory like bad programmers
+            if (ret) {
+                rdma_error("Failed to write client source buffer, errno: %d \n", -errno);
+                exit(-1);
+                return -errno;
+            }
+            clock_gettime(CLOCK_MONOTONIC_RAW, &end);
+            timediff = diff(start, end);
+
+            time_num = timediff.tv_sec + ((double)timediff.tv_nsec) / 1000000000;
+			if (time_num >= 0.00001)
+				printf("Timediff post send %f\n", time_num);
+			clock_gettime(CLOCK_MONOTONIC_RAW, &start);
+            /* at this point we are expecting 1 work completion for the write */
+            ret = process_work_completion_events(sock->completion_channel, &wc, 1);
+            if (ret != 1) {
+                rdma_error("We failed to get 1 work completions , ret = %d \n", ret);
+                return ret;
+            }
+
+            debug("Client side WRITE is complete \n");
+            sock->remote_written += len;
+
+            if (!(sock->last_bufptr_send == buf && sock->last_len_send == len)) {  // no need to gc
+                sock->gc_container[sock->gc_counter] = sock->mr_send;              // TODO: make this look not as horrible to read maybe?
+                sock->gc_counter++;
+                gc_sock(sock);
+            }
+            sock->last_bufptr_send = buf;
+            sock->last_len_send = len;
+
+            return len;
+        } else if (len <= RECVBUF_SIZE) {  // we need some more space in the receive buffer, but the message itself fits
+            debug("1.5\n");
+
+            /// TODO: send a smaller chunk to fill the buffer, then reset everything
+
+            // 1. send the remaining data to fill the buffer completely
+            int remaining = RECVBUF_SIZE - sock->remote_written;
+            // 2. wait for send to complete
+
+            // 3. set the remote offset to 0, assume we can write to the start of the buffer already
+            //    (the buffer should be huge, so this is a non-issue, maybe signal the remote side though)
+            sock->remote_written = 0;
+            // printf("wut: %d\n", len <= RECVBUF_SIZE - sock->remote_offset);
+
+            debug("buffer filled to the brim, suppose we need some sort of ring buffer confirmation here\n");
+            // printf("recursion\n");
+            return send(fd, buf, len, flags);
+
+            // 4. return the size we wrote to fill the buffer
+            return remaining;  // TODO check for this in server code. we currently just assume we sent the full message
+        }
+
+        printf(ANSI_COLOR_RED "2\n" ANSI_COLOR_RESET);
+
         int ret = -1;
         struct ibv_wc wc[2];
         static struct ibv_recv_wr recv_wr, *bad_recv_wr = NULL;
@@ -462,6 +701,7 @@ ssize_t send(int fd, const void *buf, size_t len, int flags) {
         send_wr.num_sge = 1;
         send_wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
         send_wr.send_flags = IBV_SEND_SIGNALED;
+        send_wr.imm_data = len;  // send the length of the buffer with the immediate call
         /* we have to give info for RDMA */
         send_wr.wr.rdma.rkey = sock->remote_metadata_attr.stag.remote_stag;
         send_wr.wr.rdma.remote_addr = sock->remote_metadata_attr.address;
@@ -525,11 +765,75 @@ ssize_t recv(int fd, void *buf, size_t len, int flags) {
     if (isEmpty()) return _recv(fd, buf, len, flags);
 
     sock *sock = find(fd);
-	if (!sock){
-		printf("no sock\n");
-	}
+    if (!sock) {
+        debug("no sock\n");
+    }
 
     if (sock) {
+        /// TODO: ignore len param for RDMA logic, just process a send request if one is available, otherwise memcpy.
+        if (len <= RECVBUF_SIZE - sock->local_written) {  // can read from recvbuf, and have enough space
+
+            // 0. Pre-post receive buffer
+            // 1. process write with imm, get length
+            // 2. read from local_offset to that position
+            // 3. adjust local_offset for next read
+            /// 4. TODO: send some sort of ack back to the sender when we have read data, freeing some space on the buffer - basically ring buffer
+            /// stuff we've yet to do
+            struct ibv_wc wc;
+            int ret = -1;
+            struct ibv_recv_wr recv_wr, bad_recv_wr;
+
+            bzero(&recv_wr, sizeof(recv_wr));
+            debug("prepost receive buffer\n");
+            ret = ibv_post_recv(sock->qp /* which QP */, &recv_wr /* receive work request*/, &bad_recv_wr /* error WRs */);
+            if (ret) {
+                rdma_error("Failed to post the receive buffer, errno: %d \n", ret);
+                return ret;
+            }
+
+            debug("trying to get IBV_WC_RECV_RDMA_WITH_IMM:\n");
+            ret = process_work_completion_events(sock->completion_channel, &wc, 1);
+            if (ret != 1) {
+                rdma_error("Failed to receive , ret = %d \n", ret);
+                return ret;
+            }
+            debug("success, got %s, local_offset %d\n", msgSize(wc.imm_data), sock->local_written);
+
+            debug("will now copy from  %p to %p\n", sock->recv_buf->addr + sock->local_written,
+                  sock->recv_buf->addr + sock->local_written + wc.imm_data);
+
+            memcpy(buf, sock->recv_buf->addr + sock->local_written,
+                   wc.imm_data);  /// TODO: track how much data we already read and how much we have available.
+            debug("recv_buf_addr: 0x%x\n", *((char *)sock->recv_buf->addr));
+            sock->local_written += (int)wc.imm_data;  /// TODO: ditto
+
+            if (!(sock->last_bufptr_recv == buf && sock->last_len_recv == len)) {  // we only GC when new buffer is passed
+                sock->gc_container[sock->gc_counter] = sock->mr_recv;
+                sock->gc_counter++;
+                gc_sock(sock);
+            }
+
+            sock->last_bufptr_recv = buf;
+            sock->last_len_recv = len;
+
+            return len;
+        } else if (len <= RECVBUF_SIZE) {  // we need some more space in the receive buffer
+            /// TODO: recv a smaller chunk to empty the buffer, then reset everything
+
+            // 1. get the remaining data from the full buffer
+            int remaining = RECVBUF_SIZE - sock->local_written;
+            // 2. wait for send to complete
+
+            // 3. set the local offset to 0, assume remote can write to the start of the buffer already
+            //    (the buffer should be huge, so this is a non-issue, maybe signal the remote side though)
+            sock->local_written = 0;
+            debug("buffer filled to the brim, suppose we need some sort of ring buffer confirmation here\n");
+            return recv(fd, buf, len, flags);
+
+            // 4. return the remaining bit of the buffer
+            return remaining;  // TODO check for this in server code. we currently just assume we sent the full message
+        }
+
         int ret = -1;
 
         static struct ibv_sge client_recv_sge;
@@ -574,16 +878,16 @@ ssize_t recv(int fd, void *buf, size_t len, int flags) {
          * buffer.
          */
 
-        struct rdma_buffer_attr receiver_metadata_attr;
-        receiver_metadata_attr.address = (uint64_t)sock->mr_recv->addr;
-        receiver_metadata_attr.length = (uint32_t)sock->mr_recv->length;
-        receiver_metadata_attr.stag.local_stag = (uint32_t)sock->mr_recv->lkey;
+        struct rdma_buffer_attr buffer_metadata;
+        buffer_metadata.address = (uint64_t)sock->mr_recv->addr;
+        buffer_metadata.length = (uint32_t)sock->mr_recv->length;
+        buffer_metadata.stag.local_stag = (uint32_t)sock->mr_recv->lkey;
 
         rdma_buffer_deregister(sock->metadata_mr2);
 
-        sock->metadata_mr2 = rdma_buffer_register(sock->pd /* which protection domain*/, &receiver_metadata_attr /* which memory to register */,
-                                                  sizeof(receiver_metadata_attr) /* what is the size of memory */,
-                                                  IBV_ACCESS_LOCAL_WRITE /* what access permission */);
+        sock->metadata_mr2 =
+            rdma_buffer_register(sock->pd /* which protection domain*/, &buffer_metadata /* which memory to register */,
+                                 sizeof(buffer_metadata) /* what is the size of memory */, IBV_ACCESS_LOCAL_WRITE /* what access permission */);
         if (!sock->metadata_mr2) {
             rdma_error("Receiver failed to create to hold receiver metadata \n");
             /* we assume that this is due to out of memory error */
@@ -595,8 +899,8 @@ ssize_t recv(int fd, void *buf, size_t len, int flags) {
          * only have one
          */
         struct ibv_sge server_send_sge;
-        server_send_sge.addr = (uint64_t)&receiver_metadata_attr;
-        server_send_sge.length = sizeof(receiver_metadata_attr);
+        server_send_sge.addr = (uint64_t)&buffer_metadata;
+        server_send_sge.length = sizeof(buffer_metadata);
         server_send_sge.lkey = sock->metadata_mr2->lkey;
         /* now we link this sge to the send request */
         struct ibv_send_wr server_send_wr, *bad_server_send_wr = NULL;
@@ -719,6 +1023,7 @@ int close(int fd) {
 
         if (sock->metadata_mr) rdma_buffer_deregister(sock->metadata_mr);
         if (sock->metadata_mr2) rdma_buffer_deregister(sock->metadata_mr2);
+        if (sock->recv_buf) rdma_buffer_free(sock->recv_buf);
 
         /* Destroy protection domain */
         if (sock->pd) ibv_dealloc_pd(sock->pd);
@@ -875,30 +1180,34 @@ int connect(int fd, const struct sockaddr *addr, socklen_t addrlen) {
         }
         debug("The client is connected successfully \n");
 
-        // pre-post receive buffer
-        ret = -1;
-        sock->metadata_mr = rdma_buffer_register(sock->pd, &sock->remote_metadata_attr, sizeof(sock->remote_metadata_attr), (IBV_ACCESS_LOCAL_WRITE));
-        if (!sock->metadata_mr) {
-            rdma_error("Failed to setup the server metadata mr , -ENOMEM\n");
-            return -ENOMEM;
-        }
-        struct ibv_sge server_recv_sge;
-        struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr;
-        server_recv_sge.addr = (uint64_t)sock->metadata_mr->addr;
-        server_recv_sge.length = (uint32_t)sock->metadata_mr->length;
-        server_recv_sge.lkey = (uint32_t)sock->metadata_mr->lkey;
-        /* now we link it to the request */
-        bzero(&server_recv_wr, sizeof(server_recv_wr));
-        server_recv_wr.sg_list = &server_recv_sge;
-        server_recv_wr.num_sge = 1;
-        debug("connect: preposting to recv\n");
+        // this will hopefully exchange the receive buffer metadata
+        exchange_metadata(sock);
 
-        ret = ibv_post_recv(sock->qp /* which QP */, &server_recv_wr /* receive work request*/, &bad_server_recv_wr /* error WRs */);
-        if (ret) {
-            rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
-            return ret;
-        }
-        debug("Receive buffer pre-posting is successful \n");
+        // // pre-post receive buffer
+        // ret = -1;
+        // sock->metadata_mr =
+        //     rdma_buffer_register(sock->pd, &sock->remote_metadata_attr, sizeof(sock->remote_metadata_attr), (IBV_ACCESS_LOCAL_WRITE));
+        // if (!sock->metadata_mr) {
+        //     rdma_error("Failed to setup the server metadata mr , -ENOMEM\n");
+        //     return -ENOMEM;
+        // }
+        // struct ibv_sge server_recv_sge;
+        // struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr;
+        // server_recv_sge.addr = (uint64_t)sock->metadata_mr->addr;
+        // server_recv_sge.length = (uint32_t)sock->metadata_mr->length;
+        // server_recv_sge.lkey = (uint32_t)sock->metadata_mr->lkey;
+        // /* now we link it to the request */
+        // bzero(&server_recv_wr, sizeof(server_recv_wr));
+        // server_recv_wr.sg_list = &server_recv_sge;
+        // server_recv_wr.num_sge = 1;
+        // debug("connect: preposting to recv\n");
+
+        // ret = ibv_post_recv(sock->qp /* which QP */, &server_recv_wr /* receive work request*/, &bad_server_recv_wr /* error WRs */);
+        // if (ret) {
+        //     rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
+        //     return ret;
+        // }
+        // debug("Receive buffer pre-posting is successful \n");
         return ret;
 
         return -ENOSYS;

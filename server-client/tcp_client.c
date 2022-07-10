@@ -107,18 +107,25 @@ int main(int argc, char** argv) {
     inet_ntop(AF_INET, &server_addr.sin_addr, debug_buffer, sizeof(debug_buffer));
     printf("OK: connected to the server at %s \n", debug_buffer);
 
-	if (!sanitycheck(server_fd)) {
-		exit(-1);
-	}
+	// if (!sanitycheck(server_fd)) {
+	// 	exit(-1);
+	// }
 
     for (size_t i = init_size; i <= MAX_SIZE; i = (i << 1)) {
 		recv_test(server_fd, i, num_iter);
+	// 	send_test(server_fd, i, num_iter);
+
+    // }
+
+	// for (size_t i = MAX_SIZE; i >= init_size; i = (i >> 1)) {
+	// 	recv_test(server_fd, i, num_iter);
+	// 	send_test(server_fd, i, num_iter);
 
     }
 
-	if (!sanitycheck(server_fd)) {
-		exit(-1);
-	}
+	// if (!sanitycheck(server_fd)) {
+	// 	exit(-1);
+	// }
 
     // close the socket
     ret = close(server_fd);
